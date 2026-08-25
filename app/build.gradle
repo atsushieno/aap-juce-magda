@@ -1,0 +1,70 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'org.androidaudioplugin.ports.juce.magda'
+    compileSdk 37
+    ndkVersion '29.0.14206865'
+
+    defaultConfig {
+        applicationId 'org.androidaudioplugin.ports.juce.magda'
+        minSdk 29
+        targetSdk 37
+        versionCode 1
+        versionName '0.1.0'
+        ndk { abiFilters 'arm64-v8a' }
+        externalNativeBuild {
+            cmake {
+                arguments '-DJUCEAAP_ENABLED=1',
+                        "-DAAP_DIR=${rootProject.projectDir}/external/aap-core",
+                        "-DAAP_JUCE_DIR=${rootProject.projectDir}/external/aap-juce",
+                        "-DMAGDA_DIR=${rootProject.projectDir}/external/magda-core",
+                        '-DMAGDA_FAUST_BACKEND=interp',
+                        '-DANDROID_STL=c++_shared',
+                        '-DANDROID_CPP_FEATURES=exceptions rtti'
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path 'src/main/cpp/CMakeLists.txt'
+            version '3.31.5'
+        }
+    }
+
+    sourceSets {
+        main.java.srcDirs += [
+            "${rootProject.projectDir}/external/magda-core/third_party/JUCE/modules/juce_core/native/javacore/app",
+            "${rootProject.projectDir}/external/magda-core/third_party/JUCE/modules/juce_core/native/java/app",
+            "${rootProject.projectDir}/external/magda-core/third_party/JUCE/modules/juce_gui_basics/native/javaopt/app",
+            "${rootProject.projectDir}/external/magda-core/third_party/JUCE/modules/juce_gui_basics/native/java/app",
+            "${rootProject.projectDir}/external/magda-core/third_party/JUCE/modules/juce_audio_devices/native/java/app"
+        ]
+        main.assets.srcDirs += [
+            "${rootProject.projectDir}/external/magda-core/lang"
+        ]
+    }
+
+    buildFeatures { prefab true }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        // JUCE's JuceMidiSupport triggers known Android Bluetooth permission lint findings.
+        abortOnError = false
+    }
+
+    kotlinOptions { jvmTarget = '17' }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.18.0'
+    implementation 'androidx.startup:startup-runtime:1.2.0'
+    implementation 'org.androidaudioplugin:androidaudioplugin:0.11.1'
+}

@@ -1,0 +1,19 @@
+PWD=$(shell pwd)
+
+APP_NAME=Magda
+APP_BUILD_DIR=$(PWD)
+APP_SRC_DIR=$(PWD)/external/magda-core
+JUCE_DIR=$(APP_SRC_DIR)/third_party/JUCE
+AAP_DIR=$(PWD)/external/aap-core
+AAP_JUCE_DIR=$(PWD)/external/aap-juce
+
+APP_MODULE_DIRS=app
+PATCH_DEPTH=1
+AAP_JUCE_CMAKE_PATCH_HOSTING=1
+JUCE_PATCHES= \
+    $(PWD)/juce-modules.patch \
+    $(PWD)/external/aap-juce/juce-patches/8.0.12/juce-component-peer-view-touch.patch \
+    $(PWD)/juce-component-peer-view-insets.patch
+JUCE_PATCH_DEPTH=1
+
+include $(AAP_JUCE_DIR)/Makefile.cmake-common

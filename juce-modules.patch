@@ -1,0 +1,35 @@
+diff --git a/modules/juce_gui_basics/native/juce_Windowing_android.cpp b/modules/juce_gui_basics/native/juce_Windowing_android.cpp
+--- a/modules/juce_gui_basics/native/juce_Windowing_android.cpp
++++ b/modules/juce_gui_basics/native/juce_Windowing_android.cpp
+@@ -2225,5 +2225,6 @@ private:
+         if (getAndroidSDKVersion() >= 30)
+         {
++            env->CallVoidMethod (layoutParams, AndroidWindowManagerLayoutParams30.setFitInsetsTypes, (jint) (7 | 128));
+-            env->CallVoidMethod (layoutParams, AndroidWindowManagerLayoutParams30.setFitInsetsSides, (jint) 0);
++            env->CallVoidMethod (layoutParams, AndroidWindowManagerLayoutParams30.setFitInsetsSides, (jint) 15);
+             env->CallVoidMethod (layoutParams, AndroidWindowManagerLayoutParams30.setFitInsetsIgnoringVisibility, (jboolean) true);
+         }
+
+diff --git a/modules/juce_gui_basics/native/juce_Windowing_android.cpp b/modules/juce_gui_basics/native/juce_Windowing_android.cpp
+--- a/modules/juce_gui_basics/native/juce_Windowing_android.cpp
++++ b/modules/juce_gui_basics/native/juce_Windowing_android.cpp
+@@ -930,3 +930,4 @@ DECLARE_JNI_CLASS_WITH_MIN_SDK (AndroidWindowManagerLayoutParams28, "android/view/WindowManager$LayoutParams", 28)
+ #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
+  METHOD (setFitInsetsSides,              "setFitInsetsSides",              "(I)V") \
++ METHOD (setFitInsetsTypes,              "setFitInsetsTypes",              "(I)V") \
+  METHOD (setFitInsetsIgnoringVisibility, "setFitInsetsIgnoringVisibility", "(Z)V") \
+
+diff --git a/modules/juce_gui_basics/native/juce_Windowing_android.cpp b/modules/juce_gui_basics/native/juce_Windowing_android.cpp
+--- a/modules/juce_gui_basics/native/juce_Windowing_android.cpp
++++ b/modules/juce_gui_basics/native/juce_Windowing_android.cpp
+@@ -2940,6 +2940,10 @@ void Displays::findDisplays()
+             return contentSize;
+         });
+     }
+
++    d.userArea = d.userArea.withTrimmedTop (d.safeAreaInsets.getTop())
++                         .withTrimmedLeft (d.safeAreaInsets.getLeft())
++                         .withTrimmedRight (d.safeAreaInsets.getRight())
++                         .withTrimmedBottom (d.safeAreaInsets.getBottom());
+
+     if (activity != nullptr)

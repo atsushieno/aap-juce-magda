@@ -15,8 +15,7 @@ PRE_BUILD_TASKS += patch-aap-juce
 AAP_JUCE_CMAKE_PATCH_HOSTING=1
 JUCE_PATCHES= \
     $(PWD)/juce-modules.patch \
-    $(PWD)/external/aap-juce/juce-patches/8.0.12/juce-component-peer-view-touch.patch \
-    $(PWD)/juce-component-peer-view-insets.patch
+    $(PWD)/external/aap-juce/juce-patches/8.0.12/juce-component-peer-view-touch.patch
 JUCE_PATCH_DEPTH=1
 
 patch-aap-juce: $(AAP_JUCE_DIR)/.stamp-aap-juce

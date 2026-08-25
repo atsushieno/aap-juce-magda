@@ -9,6 +9,7 @@ AAP_JUCE_DIR=$(PWD)/external/aap-juce
 
 APP_MODULE_DIRS=app
 PATCH_DEPTH=1
+PATCH_FILE=$(PWD)/magda-core.patch
 AAP_JUCE_CMAKE_PATCH_HOSTING=1
 JUCE_PATCHES= \
     $(PWD)/juce-modules.patch \

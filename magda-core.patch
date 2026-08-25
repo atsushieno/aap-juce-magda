@@ -1,0 +1,669 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 5c15618d..9d889c4d 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -353,7 +353,9 @@ target_compile_definitions(httplib INTERFACE
+ # Before magda/daw: the app stages this binary into its bundle in a POST_BUILD
+ # step, so the target has to exist by the time that directory is processed. The
+ # bridge depends on nothing here in return — juce_core and cpp-httplib only.
+-add_subdirectory(magda/mcp_bridge)
++if(NOT ANDROID)
++    add_subdirectory(magda/mcp_bridge)
++endif()
+ add_subdirectory(magda/daw)
+ add_subdirectory(magda/scripting)
+ add_subdirectory(magda/agents)
+diff --git a/magda/daw/CMakeLists.txt b/magda/daw/CMakeLists.txt
+index 481f770d..fbdf6f4b 100644
+--- a/magda/daw/CMakeLists.txt
++++ b/magda/daw/CMakeLists.txt
+@@ -389,7 +389,9 @@ if(APPLE)
+         "${CMAKE_CURRENT_SOURCE_DIR}/../../assets/mgd_doc_icon.icns")
+ endif()
+ 
+-# Out-of-process plugin scanner.
++# Out-of-process plugin scanner. Desktop-only: Android hosts AAP plugins in the
++# application process and does not package desktop helper executables.
++if(NOT ANDROID)
+ juce_add_console_app(magda_plugin_scanner
+     VERSION "${MAGDA_BUNDLE_VERSION}"
+     COMPANY_NAME "Conceptual Machines"
+@@ -410,12 +412,15 @@ juce_add_console_app(magda_cli
+     PRODUCT_NAME "MAGDA CLI"
+     BUNDLE_ID "com.MAGDA.MAGDACLI"
+ )
++endif()
+ 
+ # =============================================================================
+ # Per-subdirectory sources
+ # =============================================================================
+ 
+-add_subdirectory(cli)
++if(NOT ANDROID)
++    add_subdirectory(cli)
++endif()
+ add_subdirectory(core)
+ add_subdirectory(engine)
+ add_subdirectory(project)
+@@ -483,8 +488,8 @@ if(WIN32)
+     find_path(ASIO_SDK_DIR
+         NAMES "common/iasiodrv.h"
+         PATHS
+-            "${CMAKE_SOURCE_DIR}/third_party/asiosdk"
+-            "${CMAKE_SOURCE_DIR}/third_party/asio_sdk"
++            "${PROJECT_SOURCE_DIR}/third_party/asiosdk"
++            "${PROJECT_SOURCE_DIR}/third_party/asio_sdk"
+             "$ENV{ASIO_SDK_DIR}"
+         DOC "Path to Steinberg ASIO SDK"
+     )
+@@ -586,8 +591,8 @@ target_link_libraries(magda_device_sdk
+ # WHOLE_ARCHIVE above retains its public-hook registration anchor.
+ target_compile_features(magda_devices PUBLIC cxx_std_20)
+ target_include_directories(magda_devices PRIVATE
+-    ${CMAKE_SOURCE_DIR}
+-    ${CMAKE_SOURCE_DIR}/third_party/faust/architecture
++    ${PROJECT_SOURCE_DIR}
++    ${PROJECT_SOURCE_DIR}/third_party/faust/architecture
+ )
+ target_link_libraries(magda_devices
+     PUBLIC
+@@ -599,8 +604,8 @@ target_link_libraries(magda_devices
+ )
+ target_compile_features(magda_base_devices PRIVATE cxx_std_20)
+ target_include_directories(magda_base_devices PRIVATE
+-    ${CMAKE_SOURCE_DIR}
+-    ${CMAKE_SOURCE_DIR}/third_party/faust/architecture
++    ${PROJECT_SOURCE_DIR}
++    ${PROJECT_SOURCE_DIR}/third_party/faust/architecture
+ )
+ target_link_libraries(magda_base_devices
+     PRIVATE
+@@ -610,8 +615,8 @@ target_link_libraries(magda_base_devices
+ )
+ target_compile_features(magda_tracktion_compat_devices PRIVATE cxx_std_20)
+ target_include_directories(magda_tracktion_compat_devices PRIVATE
+-    ${CMAKE_SOURCE_DIR}
+-    ${CMAKE_SOURCE_DIR}/third_party/faust/architecture
++    ${PROJECT_SOURCE_DIR}
++    ${PROJECT_SOURCE_DIR}/third_party/faust/architecture
+     $<TARGET_PROPERTY:tracktion::tracktion_engine,INTERFACE_INCLUDE_DIRECTORIES>
+ )
+ target_compile_definitions(magda_tracktion_compat_devices PRIVATE
+@@ -657,7 +662,7 @@ endif()
+ # Tracktion's dedicated time-stretch translation unit with optimisation so the
+ # local app exercises representative DSP performance.
+ set_source_files_properties(
+-    "${CMAKE_SOURCE_DIR}/third_party/tracktion_engine/modules/tracktion_engine/tracktion_engine_timestretch.cpp"
++    "${PROJECT_SOURCE_DIR}/third_party/tracktion_engine/modules/tracktion_engine/tracktion_engine_timestretch.cpp"
+     TARGET_DIRECTORY magda_daw
+     PROPERTIES COMPILE_OPTIONS
+         "$<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:MSVC>>:/O2>;$<$<AND:$<CONFIG:Debug>,$<NOT:$<CXX_COMPILER_ID:MSVC>>>:-O2>"
+@@ -682,7 +687,7 @@ target_compile_definitions(magda_daw
+     JUCE_MODAL_LOOPS_PERMITTED=1
+     TRACKTION_ENABLE_TIMESTRETCH_SOUNDTOUCH=1
+     TRACKTION_ENABLE_TIMESTRETCH_SIGNALSMITH=1
+-    MAGDA_DAWPROJECT_SCHEMA_DIR="${CMAKE_SOURCE_DIR}/third_party/dawproject"
++    MAGDA_DAWPROJECT_SCHEMA_DIR="${PROJECT_SOURCE_DIR}/third_party/dawproject"
+     $<$<BOOL:${JUCE_ASIO_ENABLED}>:JUCE_ASIO=1>
+     PRIVATE
+     # Tracktion Engine carries a MAGDA test hook (magdaTestEvaluateLoopSessionDecision,
+@@ -756,8 +761,8 @@ target_include_directories(magda_daw
+     ${CMAKE_CURRENT_SOURCE_DIR}/profiling
+     ${CMAKE_CURRENT_BINARY_DIR}/generated
+     PRIVATE
+-    ${CMAKE_SOURCE_DIR}
+-    ${CMAKE_SOURCE_DIR}/third_party/faust/architecture
++    ${PROJECT_SOURCE_DIR}
++    ${PROJECT_SOURCE_DIR}/third_party/faust/architecture
+ )
+ 
+ target_include_directories(magda_daw_app
+@@ -786,9 +791,10 @@ target_include_directories(magda_daw_app
+     ${CMAKE_CURRENT_SOURCE_DIR}/ui/components/chain
+     ${CMAKE_CURRENT_SOURCE_DIR}/ui/components/automation
+     ${CMAKE_CURRENT_SOURCE_DIR}/ui/components/common/curve
+-    ${CMAKE_SOURCE_DIR}
++    ${PROJECT_SOURCE_DIR}
+ )
+ 
++if(NOT ANDROID)
+ target_link_libraries(magda_plugin_scanner
+     PRIVATE
+     juce::juce_core
+@@ -856,6 +862,7 @@ target_include_directories(magda_cli
+ if(APPLE)
+     target_link_options(magda_cli PRIVATE "-Wl,-exported_symbol,_main")
+ endif()
++endif()
+ 
+ # On MSVC Release builds, generate a PDB for crash symbolization.
+ # /Zi is applied here (not globally) so llama.cpp and other third-party targets
+@@ -872,6 +879,7 @@ install(TARGETS magda_daw_app DESTINATION bin)
+ # =============================================================================
+ 
+ # Copy the plugin scanner executable next to the main app.
++if(NOT ANDROID)
+ if(APPLE)
+     add_custom_command(TARGET magda_daw_app POST_BUILD
+         COMMAND ${CMAKE_COMMAND} -E copy
+@@ -894,6 +902,7 @@ else()
+         COMMENT "Copying plugin scanner alongside app executable"
+     )
+ endif()
++endif()
+ 
+ # Stage the MCP stdio bridge next to the main app (issue #1858).
+ #
+@@ -917,6 +926,7 @@ else()
+     set(MAGDA_MCP_BRIDGE_DEST "$<TARGET_FILE_DIR:magda_daw_app>/magda-mcp")
+ endif()
+ 
++if(NOT ANDROID)
+ add_custom_target(magda_stage_mcp_bridge ALL
+     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+         "$<TARGET_FILE:magda_mcp_bridge>"
+@@ -927,6 +937,7 @@ add_custom_target(magda_stage_mcp_bridge ALL
+     COMMENT "Staging MCP bridge beside MAGDA"
+     VERBATIM
+ )
++endif()
+ 
+ # Copy lang/ (localization JSON) into the app so StringTable can load it at runtime.
+ set(MAGDA_LANG_SRC "${CMAKE_CURRENT_SOURCE_DIR}/../../lang")
+@@ -1007,15 +1018,17 @@ endif()
+ 
+ # Runtime-compiled devices need the Faust standard library beside every host.
+ magda_stage_faust_libraries(magda_daw_app)
+-magda_stage_faust_libraries(magda_cli)
+ magda_stage_faust_runtime_dsp(magda_daw_app)
+-magda_stage_faust_runtime_dsp(magda_cli)
++if(NOT ANDROID)
++    magda_stage_faust_libraries(magda_cli)
++    magda_stage_faust_runtime_dsp(magda_cli)
++endif()
+ 
+ # Copy third_party/dawproject/ (vendored Project.xsd + MetaData.xsd) into the
+ # app so DawProjectValidator can validate import/export against the schemas at
+ # runtime. Without this, the build-time MAGDA_DAWPROJECT_SCHEMA_DIR source path
+ # does not exist on an end-user machine and every validate call fails.
+-set(MAGDA_DAWPROJECT_SCHEMA_SRC "${CMAKE_SOURCE_DIR}/third_party/dawproject")
++set(MAGDA_DAWPROJECT_SCHEMA_SRC "${PROJECT_SOURCE_DIR}/third_party/dawproject")
+ if(APPLE)
+     add_custom_command(TARGET magda_daw_app POST_BUILD
+         COMMAND ${CMAKE_COMMAND} -E copy_directory
+diff --git a/magda/daw/audio/DevicesDependencies.cmake b/magda/daw/audio/DevicesDependencies.cmake
+index 28e86ef9..3dffa2b8 100644
+--- a/magda/daw/audio/DevicesDependencies.cmake
++++ b/magda/daw/audio/DevicesDependencies.cmake
+@@ -6,7 +6,13 @@
+ # interpreter's throughput across MAGDA's effects with bit-identical output,
+ # no LLVM dependency, and sandboxed execution so a bad or generated DSP cannot
+ # take the host down. `interp` remains selectable; `llvm` is pro tier.
+-set(MAGDA_FAUST_BACKEND "wasm" CACHE STRING "Faust backend: wasm, interp or llvm")
++if(ANDROID)
++    # Android cannot consume the desktop Wasmtime archives, and the
++    # interpreter backend is portable across the supported Android ABIs.
++    set(MAGDA_FAUST_BACKEND "interp" CACHE STRING "Faust backend: wasm, interp or llvm" FORCE)
++else()
++    set(MAGDA_FAUST_BACKEND "wasm" CACHE STRING "Faust backend: wasm, interp or llvm")
++endif()
+ set_property(CACHE MAGDA_FAUST_BACKEND PROPERTY STRINGS "wasm" "interp" "llvm")
+ set(MAGDA_FAUST_PREBUILT_DIR "" CACHE PATH
+     "Directory containing a prebuilt Faust artifact (bin/faust + lib/libfaust); builds from source when empty/missing")
+@@ -78,7 +84,14 @@ else()
+         message(WARNING "MAGDA_FAUST_PREBUILT_DIR set but artifact missing under it; building Faust from source")
+     endif()
+ 
+-    set(INCLUDE_EXECUTABLE ON CACHE BOOL "" FORCE)
++    # The Faust command-line compiler is a desktop build helper.  The Android
++    # application only needs libfaust and must not link this executable or its
++    # host-platform dependencies into the APK build.
++    if(ANDROID)
++        set(INCLUDE_EXECUTABLE OFF CACHE BOOL "" FORCE)
++    else()
++        set(INCLUDE_EXECUTABLE ON CACHE BOOL "" FORCE)
++    endif()
+     set(INCLUDE_STATIC ON CACHE BOOL "" FORCE)
+     set(INCLUDE_DYNAMIC OFF CACHE BOOL "" FORCE)
+     set(INCLUDE_OSC OFF CACHE BOOL "" FORCE)
+@@ -131,6 +144,10 @@ else()
+     endif()
+ 
+     add_subdirectory(third_party/faust/build third_party/faust EXCLUDE_FROM_ALL)
++    if(ANDROID AND TARGET staticlib)
++        set_target_properties(staticlib PROPERTIES
++            ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/faust/lib")
++    endif()
+     add_library(faust::libfaust ALIAS staticlib)
+ 
+     # libfaust references wasmtime's C API but knows nothing about the static
+@@ -161,7 +178,7 @@ endif()
+ # the device libraries and the tests from drifting apart.
+ add_library(magda_faust_backend INTERFACE)
+ target_include_directories(magda_faust_backend
+-    INTERFACE ${CMAKE_SOURCE_DIR}/third_party/faust/architecture)
++    INTERFACE ${PROJECT_SOURCE_DIR}/third_party/faust/architecture)
+ if(MAGDA_FAUST_BACKEND STREQUAL "wasm")
+     target_compile_definitions(magda_faust_backend INTERFACE MAGDA_FAUST_BACKEND_WASM=1)
+ endif()
+@@ -199,6 +216,14 @@ set(MAGDA_FAUST_VECTOR_SIZE 4 CACHE STRING
+ # Add a build-time Faust DSP-to-C++ step and return the generated source path.
+ # Pass VECTORIZE to generate this device as vectorizable sub-loops; do that
+ # only with cross-platform benchmark data backing it.
++if(ANDROID)
++    # Faust is a build-time code generator.  In a cross build it must run on
++    # the build host; only libfaust is compiled for Android.
++    find_program(MAGDA_FAUST_EXECUTABLE faust REQUIRED)
++else()
++    set(MAGDA_FAUST_EXECUTABLE "$<TARGET_FILE:faust>")
++endif()
++
+ function(magda_compile_faust_dsp DSP_FILE CLASS_NAME OUT_VAR)
+     cmake_parse_arguments(ARG "VECTORIZE" "" "" ${ARGN})
+ 
+@@ -214,14 +239,14 @@ function(magda_compile_faust_dsp DSP_FILE CLASS_NAME OUT_VAR)
+     file(MAKE_DIRECTORY "${GENERATED_DIR}")
+     add_custom_command(
+         OUTPUT "${GENERATED_CPP}"
+-        COMMAND $<TARGET_FILE:faust>
++        COMMAND ${MAGDA_FAUST_EXECUTABLE}
+                 -lang cpp
+                 -cn ${CLASS_NAME}
+-                -I "${CMAKE_SOURCE_DIR}/third_party/faust/libraries"
++                -I "${PROJECT_SOURCE_DIR}/third_party/faust/libraries"
+                 ${_magda_faust_codegen_flags}
+                 -o "${GENERATED_CPP}"
+                 "${DSP_FILE}"
+-        DEPENDS "${DSP_FILE}" $<TARGET_FILE:faust>
++        DEPENDS "${DSP_FILE}" ${MAGDA_FAUST_EXECUTABLE}
+         COMMENT "faust → cpp: ${DSP_NAME}.dsp → ${CLASS_NAME}"
+         VERBATIM
+     )
+@@ -242,7 +267,7 @@ function(magda_stage_faust_libraries TARGET_NAME)
+ 
+     add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+         COMMAND ${CMAKE_COMMAND} -E copy_directory
+-            "${CMAKE_SOURCE_DIR}/third_party/faust/libraries"
++            "${PROJECT_SOURCE_DIR}/third_party/faust/libraries"
+             "${_magda_faust_libraries_destination}"
+         COMMENT "Copying Faust standard libraries for ${TARGET_NAME}"
+     )
+@@ -263,7 +288,7 @@ function(magda_stage_faust_runtime_dsp TARGET_NAME)
+ 
+     add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+         COMMAND ${CMAKE_COMMAND} -E copy_directory
+-            "${CMAKE_SOURCE_DIR}/magda/daw/audio/faust_dsp/runtime"
++            "${PROJECT_SOURCE_DIR}/magda/daw/audio/faust_dsp/runtime"
+             "${_magda_faust_dsp_destination}"
+         COMMENT "Copying runtime Faust DSP library for ${TARGET_NAME}"
+     )
+@@ -349,7 +374,8 @@ else()
+         message(WARNING "MAGDA_MUTABLE_PREBUILT_DIR set but artifact missing under it; building Mutable from source")
+     endif()
+ 
+-    set(MI_ROOT ${CMAKE_SOURCE_DIR}/third_party/eurorack)
++    # Use MAGDA's project root rather than the outer Android CMake wrapper.
++    set(MI_ROOT ${PROJECT_SOURCE_DIR}/third_party/eurorack)
+     file(GLOB MI_SOURCES CONFIGURE_DEPENDS
+         ${MI_ROOT}/elements/dsp/*.cc
+         ${MI_ROOT}/elements/resources.cc
+@@ -377,8 +403,13 @@ else()
+     else()
+         target_compile_options(magda_mutable PRIVATE -w)
+     endif()
++    if(ANDROID)
++        set(_magda_mutable_archive_dir "${CMAKE_CURRENT_BINARY_DIR}/mutable/lib")
++    else()
++        set(_magda_mutable_archive_dir "${MI_ROOT}/build/lib")
++    endif()
+     set_target_properties(magda_mutable PROPERTIES
+         POSITION_INDEPENDENT_CODE ON
+-        ARCHIVE_OUTPUT_DIRECTORY "${MI_ROOT}/build/lib")
++        ARCHIVE_OUTPUT_DIRECTORY "${_magda_mutable_archive_dir}")
+     add_library(magda::mutable ALIAS magda_mutable)
+ endif()
+diff --git a/magda/daw/core/StringTable.cpp b/magda/daw/core/StringTable.cpp
+index 66ac6de7..c9c7d893 100644
+--- a/magda/daw/core/StringTable.cpp
++++ b/magda/daw/core/StringTable.cpp
+@@ -26,6 +26,12 @@ juce::File StringTable::findLangDirectory() {
+ 
+     // macOS: appFile is the .app bundle itself; resources live inside Contents/Resources.
+     juce::Array<juce::File> candidates;
++#if JUCE_ANDROID
++    // Android packages the language JSON as APK assets and the Java startup
++    // initializer copies them to MAGDA's app-data directory before JUCE starts.
++    candidates.add(juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
++                       .getChildFile("MAGDA/lang"));
++#endif
+ #if JUCE_MAC
+     candidates.add(appFile.getChildFile("Contents/Resources/lang"));
+ #endif
+diff --git a/magda/daw/core/UIScale.cpp b/magda/daw/core/UIScale.cpp
+index 28c67286..8cd1b625 100644
+--- a/magda/daw/core/UIScale.cpp
++++ b/magda/daw/core/UIScale.cpp
+@@ -21,11 +21,19 @@ double clampScale(double s) {
+ 
+ #if !JUCE_MAC
+ double autoScaleForDpi(double dpi) {
++#if JUCE_ANDROID
++    // JUCE already presents Android layouts in density-adjusted coordinates.
++    // Applying the desktop DPI heuristic here doubles the entire UI on common
++    // phones/tablets and leaves too little usable space for MAGDA's controls.
++    juce::ignoreUnused(dpi);
++    return 1.5;
++#else
+     if (dpi < 140.0)
+         return 1.0;
+     if (dpi <= 180.0)
+         return 1.5;
+     return 2.0;
++#endif
+ }
+ #endif
+ 
+diff --git a/magda/daw/engine/PluginScanCoordinator.cpp b/magda/daw/engine/PluginScanCoordinator.cpp
+index eecc3c09..35516851 100644
+--- a/magda/daw/engine/PluginScanCoordinator.cpp
++++ b/magda/daw/engine/PluginScanCoordinator.cpp
+@@ -58,7 +58,7 @@ juce::File PluginScanCoordinator::getScannerExecutable() const {
+             tryCandidate(appBundle.getParentDirectory().getChildFile("magda_plugin_scanner.exe"));
+         found != juce::File())
+         return found;
+-#else
++#elif JUCE_LINUX
+     // Resolve /proc/self/exe directly to find the real executable path.
+     // JUCE's currentApplicationFile uses dladdr which on glibc returns argv[0]
+     // for the main program. Inside an AppImage the type-2 runtime sets argv[0]
+diff --git a/magda/daw/engine/TracktionEngineWrapperInit.cpp b/magda/daw/engine/TracktionEngineWrapperInit.cpp
+index 87e9f51e..f268088f 100644
+--- a/magda/daw/engine/TracktionEngineWrapperInit.cpp
++++ b/magda/daw/engine/TracktionEngineWrapperInit.cpp
+@@ -23,6 +23,10 @@
+ #include "TracktionEngineWrapper.hpp"
+ #include "TracktionTempoMap.hpp"
+ 
++#if JUCEAAP_ENABLED
++#include <aap_audio_plugin_client/aap_audio_plugin_client.h>
++#endif
++
+ namespace magda {
+ 
+ TracktionEngineWrapper::TracktionEngineWrapper()
+@@ -57,6 +61,15 @@ void TracktionEngineWrapper::initializePluginFormats() {
+     // Register ToneGeneratorPlugin (not registered by default)
+     engine_->getPluginManager().createBuiltInType<tracktion::ToneGeneratorPlugin>();
+ 
++    // Tracktion owns the application's AudioPluginFormatManager.  Register AAP
++    // in that manager so discovery, KnownPluginList persistence, and plugin
++    // instantiation all use the same format registry as desktop formats.
++#if JUCEAAP_ENABLED && JUCE_ANDROID
++    engine_->getPluginManager().pluginFormatManager.addFormat(
++        std::make_unique<juceaap::AndroidAudioPluginFormat>());
++    juce::Logger::writeToLog("[AAP] AndroidAudioPluginFormat registered in Tracktion format manager");
++#endif
++
+     // Enable out-of-process scanning to prevent plugin crashes from crashing the app
+     auto& pluginManager = engine_->getPluginManager();
+     pluginManager.setUsesSeparateProcessForScanning(true);
+@@ -70,6 +83,43 @@ void TracktionEngineWrapper::initializePluginFormats() {
+     // Persist + resync the cached count so PluginSettingsDialog doesn't
+     // show a stale total after the prune.
+     auto& knownPlugins = pluginManager.knownPluginList;
++
++#if JUCEAAP_ENABLED && JUCE_ANDROID
++    // AAP plugins are Android services, not files. They must be enumerated in
++    // this process; the desktop out-of-process scanner cannot discover or host
++    // them. Refresh the AAP entries on every startup so installed/uninstalled
++    // services are reflected immediately in the browser.
++    juce::AudioPluginFormat* aapFormat = nullptr;
++    for (int i = 0; i < pluginManager.pluginFormatManager.getNumFormats(); ++i) {
++        if (auto* format = pluginManager.pluginFormatManager.getFormat(i);
++            format != nullptr && format->getName() == "AAP") {
++            aapFormat = format;
++            break;
++        }
++    }
++
++    if (aapFormat != nullptr) {
++        for (const auto& description : knownPlugins.getTypesForFormat(*aapFormat))
++            knownPlugins.removeType(description);
++
++        juce::OwnedArray<juce::PluginDescription> descriptions;
++        auto identifiers = aapFormat->searchPathsForPlugins(
++            aapFormat->getDefaultLocationsToSearch(), true, false);
++        for (const auto& identifier : identifiers)
++            aapFormat->findAllTypesForFile(descriptions, identifier);
++
++        for (const auto* description : descriptions)
++            knownPlugins.addType(*description);
++
++        juce::Logger::writeToLog("[AAP] Enumerated " +
++                                 juce::String(descriptions.size()) +
++                                 " Android plugin descriptions");
++        Config::getInstance().setTotalPluginCount(knownPlugins.getNumTypes());
++        Config::getInstance().save();
++        savePluginList();
++    }
++#endif
++
+     if (pruneMissingPlugins(knownPlugins, pluginManager.pluginFormatManager) > 0) {
+         savePluginList();
+         Config::getInstance().setTotalPluginCount(knownPlugins.getNumTypes());
+@@ -99,6 +149,8 @@ void TracktionEngineWrapper::initializePluginFormats() {
+ 
+     // Log registered plugin formats
+     auto& formatManager = pluginManager.pluginFormatManager;
++    juce::Logger::writeToLog("[AAP] Tracktion plugin format count: "
++                             + juce::String(formatManager.getNumFormats()));
+     DBG("Plugin formats registered by Tracktion Engine: " << formatManager.getNumFormats());
+     for (int i = 0; i < formatManager.getNumFormats(); ++i) {
+         auto* format = formatManager.getFormat(i);
+diff --git a/magda/daw/magda_daw_main.cpp b/magda/daw/magda_daw_main.cpp
+index 45f5d886..91eec6b2 100644
+--- a/magda/daw/magda_daw_main.cpp
++++ b/magda/daw/magda_daw_main.cpp
+@@ -9,6 +9,10 @@
+ #include <memory>
+ #include <string>
+ 
++#if JUCE_LINUX || JUCE_ANDROID
++    #include <unistd.h>
++#endif
++
+ #include "../../magda/agents/llama_model_manager.hpp"
+ #include "../../magda/agents/llm_client_factory.hpp"
+ #include "../../magda/agents/llm_presets.hpp"
+diff --git a/magda/daw/media_db/AudioFeatures.cpp b/magda/daw/media_db/AudioFeatures.cpp
+index f336c860..38ff9072 100644
+--- a/magda/daw/media_db/AudioFeatures.cpp
++++ b/magda/daw/media_db/AudioFeatures.cpp
+@@ -22,11 +22,7 @@ constexpr int kFftSize = 1 << kFftOrder;  // 1024
+ constexpr int kFftBins = kFftSize / 2;    // 512 (drop Nyquist for stats)
+ constexpr int kHopSize = kFftSize / 4;    // 75% overlap
+ 
+-using SimdFloat = juce::dsp::SIMDRegister<float>;
+-constexpr auto kSimdWidth = SimdFloat::SIMDNumElements;
+-static_assert(kFftBins % kSimdWidth == 0);
+-
+-alignas(SimdFloat::SIMDRegisterSize) constexpr auto kBinIndices = [] {
++constexpr auto kBinIndices = [] {
+     std::array<float, kFftBins> indices{};
+     for (std::size_t i = 0; i < indices.size(); ++i) {
+         indices[i] = static_cast<float>(i);
+@@ -208,22 +204,22 @@ struct FrameReductions {
+ };
+ 
+ FrameReductions reduceFrame(const float* magnitudes, float* previousMagnitudes) {
+-    auto magnitudeSum = SimdFloat::expand(0.0F);
+-    auto binWeightedSum = SimdFloat::expand(0.0F);
+-    auto positiveFlux = SimdFloat::expand(0.0F);
+-    const auto zero = SimdFloat::expand(0.0F);
+-
+-    for (std::size_t offset = 0; offset < kFftBins; offset += kSimdWidth) {
+-        const auto magnitude = SimdFloat::fromRawArray(magnitudes + offset);
+-        const auto previous = SimdFloat::fromRawArray(previousMagnitudes + offset);
+-        const auto bins = SimdFloat::fromRawArray(kBinIndices.data() + offset);
++    float magnitudeSum = 0.0F;
++    float binWeightedSum = 0.0F;
++    float positiveFlux = 0.0F;
++
++    // JUCE does not expose SIMDRegister on Android.  Keep this reduction
++    // scalar there; the analysis is offline and correctness is more useful
++    // than requiring a platform-specific vector implementation.
++    for (std::size_t bin = 0; bin < kFftBins; ++bin) {
++        const auto magnitude = magnitudes[bin];
+         magnitudeSum += magnitude;
+-        binWeightedSum = SimdFloat::multiplyAdd(binWeightedSum, magnitude, bins);
+-        positiveFlux += SimdFloat::max(magnitude - previous, zero);
+-        magnitude.copyToRawArray(previousMagnitudes + offset);
++        binWeightedSum += magnitude * kBinIndices[bin];
++        positiveFlux += std::max(magnitude - previousMagnitudes[bin], 0.0F);
++        previousMagnitudes[bin] = magnitude;
+     }
+ 
+-    return {magnitudeSum.sum(), binWeightedSum.sum(), positiveFlux.sum()};
++    return {magnitudeSum, binWeightedSum, positiveFlux};
+ }
+ 
+ std::array<signed char, kFftBins> makePitchClassLookup(int sampleRate) {
+@@ -262,8 +258,8 @@ SpectralAnalysis computeSpectralAnalysis(const juce::AudioBuffer<float>& mono, i
+     juce::dsp::FFT fft(kFftOrder);
+     juce::dsp::WindowingFunction<float> window(kFftSize, juce::dsp::WindowingFunction<float>::hann);
+ 
+-    alignas(SimdFloat::SIMDRegisterSize) std::array<float, kFftSize * 2> fftData{};
+-    alignas(SimdFloat::SIMDRegisterSize) std::array<float, kFftBins> previousMagnitudes{};
++    std::array<float, kFftSize * 2> fftData{};
++    std::array<float, kFftBins> previousMagnitudes{};
+     std::array<float, 12> chroma{};
+     const auto pitchClasses =
+         analyseKey ? makePitchClassLookup(sampleRate) : std::array<signed char, kFftBins>{};
+diff --git a/magda/daw/ui/windows/MainWindowMenus.cpp b/magda/daw/ui/windows/MainWindowMenus.cpp
+index 18ec0129..9228a301 100644
+--- a/magda/daw/ui/windows/MainWindowMenus.cpp
++++ b/magda/daw/ui/windows/MainWindowMenus.cpp
+@@ -658,6 +658,17 @@ void MainWindow::setupMenuCallbacks() {
+     };
+ 
+     // View menu callbacks
++    auto ensureArrangementViewForZoom = [this]() -> MainView* {
++        if (!mainComponent || !mainComponent->mainView)
++            return nullptr;
++
++        if (!mainComponent->mainView->isVisible()) {
++            ViewModeController::getInstance().setViewMode(ViewMode::Arrange);
++        }
++
++        return mainComponent->mainView.get();
++    };
++
+     callbacks.onToggleLeftPanel = [this](bool show) {
+         if (mainComponent) {
+             mainComponent->leftPanelVisible = show;
+@@ -694,33 +705,33 @@ void MainWindow::setupMenuCallbacks() {
+         }
+     };
+ 
+-    callbacks.onZoomIn = [this]() {
+-        if (mainComponent && mainComponent->mainView) {
+-            auto& tc = mainComponent->mainView->getTimelineController();
+-            double currentZoom = mainComponent->mainView->getHorizontalZoom();
++    callbacks.onZoomIn = [ensureArrangementViewForZoom]() {
++        if (auto* view = ensureArrangementViewForZoom()) {
++            auto& tc = view->getTimelineController();
++            double currentZoom = view->getHorizontalZoom();
+             tc.dispatch(SetZoomEvent{currentZoom * 1.25});
+         }
+     };
+ 
+-    callbacks.onZoomOut = [this]() {
+-        if (mainComponent && mainComponent->mainView) {
+-            auto& tc = mainComponent->mainView->getTimelineController();
+-            double currentZoom = mainComponent->mainView->getHorizontalZoom();
++    callbacks.onZoomOut = [ensureArrangementViewForZoom]() {
++        if (auto* view = ensureArrangementViewForZoom()) {
++            auto& tc = view->getTimelineController();
++            double currentZoom = view->getHorizontalZoom();
+             tc.dispatch(SetZoomEvent{currentZoom / 1.25});
+         }
+     };
+ 
+-    callbacks.onZoomToFit = [this]() {
+-        if (mainComponent && mainComponent->mainView) {
+-            auto& tc = mainComponent->mainView->getTimelineController();
++    callbacks.onZoomToFit = [ensureArrangementViewForZoom]() {
++        if (auto* view = ensureArrangementViewForZoom()) {
++            auto& tc = view->getTimelineController();
+             double lengthBeats = tc.getState().timelineLengthBeats;
+             tc.dispatch(ZoomToFitBeatsEvent{0.0, lengthBeats});
+         }
+     };
+ 
+-    callbacks.onZoomLoopToFit = [this]() {
+-        if (mainComponent && mainComponent->mainView) {
+-            auto& tc = mainComponent->mainView->getTimelineController();
++    callbacks.onZoomLoopToFit = [ensureArrangementViewForZoom]() {
++        if (auto* view = ensureArrangementViewForZoom()) {
++            auto& tc = view->getTimelineController();
+             const auto& loop = tc.getState().loop;
+             if (loop.isValid() && loop.enabled) {
+                 tc.dispatch(ZoomToFitBeatsEvent{loop.startBeats, loop.endBeats});
+@@ -728,9 +739,9 @@ void MainWindow::setupMenuCallbacks() {
+         }
+     };
+ 
+-    callbacks.onZoomSelectionToFit = [this]() {
+-        if (mainComponent && mainComponent->mainView) {
+-            auto& tc = mainComponent->mainView->getTimelineController();
++    callbacks.onZoomSelectionToFit = [ensureArrangementViewForZoom]() {
++        if (auto* view = ensureArrangementViewForZoom()) {
++            auto& tc = view->getTimelineController();
+             const auto& sel = tc.getState().selection;
+             if (sel.isActive()) {
+                 tc.dispatch(ZoomToFitBeatsEvent{sel.startBeats, sel.endBeats});
+diff --git a/magda/engine/CMakeLists.txt b/magda/engine/CMakeLists.txt
+index f999d28d..fbb85bd0 100644
+--- a/magda/engine/CMakeLists.txt
++++ b/magda/engine/CMakeLists.txt
+@@ -142,7 +142,7 @@ target_include_directories(magda_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+ # that nothing outside third_party/ can break this target.
+ #
+ # Standing rule for the engine: nothing real-time-concurrent is hand-rolled.
+-target_include_directories(magda_engine PUBLIC ${CMAKE_SOURCE_DIR}/third_party/farbot/include)
++target_include_directories(magda_engine PUBLIC ${PROJECT_SOURCE_DIR}/third_party/farbot/include)
+ 
+ # The two stretch engines (#2037). Signalsmith Stretch is header-only and MIT;
+ # SoundTouch is LGPL-2.1 and its own static target, which is what keeps it
+@@ -152,7 +152,7 @@ target_include_directories(magda_engine PUBLIC ${CMAKE_SOURCE_DIR}/third_party/f
+ #
+ # SYSTEM so their warnings are theirs rather than ours.
+ target_include_directories(magda_engine SYSTEM PRIVATE
+-    ${CMAKE_SOURCE_DIR}/third_party/signalsmith-stretch)
++    ${PROJECT_SOURCE_DIR}/third_party/signalsmith-stretch)
+ target_link_libraries(magda_engine PRIVATE soundtouch)
+ 
+ # Borrow JUCE's headers and defines without linking the modules: the model
+@@ -193,7 +193,7 @@ file(GLOB_RECURSE MAGDA_ENGINE_SOURCES CONFIGURE_DEPENDS
+     "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp")
+ 
+ foreach(_engine_source ${MAGDA_ENGINE_SOURCES})
+-    file(RELATIVE_PATH _engine_relative "${CMAKE_SOURCE_DIR}" "${_engine_source}")
++    file(RELATIVE_PATH _engine_relative "${PROJECT_SOURCE_DIR}" "${_engine_source}")
+     file(STRINGS "${_engine_source}" _engine_includes REGEX "^[ \t]*#[ \t]*include[ \t]*[<\"]")
+ 
+     foreach(_include_line ${_engine_includes})
+diff --git a/magda/scripting/CMakeLists.txt b/magda/scripting/CMakeLists.txt
+index 609c26d0..fd722619 100644
+--- a/magda/scripting/CMakeLists.txt
++++ b/magda/scripting/CMakeLists.txt
+@@ -113,7 +113,7 @@ target_link_libraries(magda_scripting
+ 
+ target_include_directories(magda_scripting
+     PUBLIC
+-    ${CMAKE_SOURCE_DIR}
++    ${PROJECT_SOURCE_DIR}
+ )
+ 
+ set_target_properties(magda_scripting PROPERTIES
+

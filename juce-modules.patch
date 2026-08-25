@@ -1,35 +1,48 @@
+diff --git a/modules/juce_graphics/native/juce_Fonts_android.cpp b/modules/juce_graphics/native/juce_Fonts_android.cpp
+index 6ba1717892..15db9f9881 100644
+--- a/modules/juce_graphics/native/juce_Fonts_android.cpp
++++ b/modules/juce_graphics/native/juce_Fonts_android.cpp
+@@ -469,7 +469,7 @@ private:
+         : Typeface (name, style),
+           doCache (cache),
+           javaFont (std::move (javaFontIn)),
+-          native (std::make_unique<Native> (TypefaceNativeOptions { std::move (fontIn), nonPortableMetricsIn, this }))
++          native (std::make_unique<Native> (TypefaceNativeOptions { fontIn, nonPortableMetricsIn, this }))
+     {
+         if (doCache == DoCache::yes)
+             if (auto* c = MemoryFontCache::getInstance())
 diff --git a/modules/juce_gui_basics/native/juce_Windowing_android.cpp b/modules/juce_gui_basics/native/juce_Windowing_android.cpp
+index 979778016b..b6d4408903 100644
 --- a/modules/juce_gui_basics/native/juce_Windowing_android.cpp
 +++ b/modules/juce_gui_basics/native/juce_Windowing_android.cpp
-@@ -2225,5 +2225,6 @@ private:
-         if (getAndroidSDKVersion() >= 30)
-         {
-+            env->CallVoidMethod (layoutParams, AndroidWindowManagerLayoutParams30.setFitInsetsTypes, (jint) (7 | 128));
--            env->CallVoidMethod (layoutParams, AndroidWindowManagerLayoutParams30.setFitInsetsSides, (jint) 0);
-+            env->CallVoidMethod (layoutParams, AndroidWindowManagerLayoutParams30.setFitInsetsSides, (jint) 15);
-             env->CallVoidMethod (layoutParams, AndroidWindowManagerLayoutParams30.setFitInsetsIgnoringVisibility, (jboolean) true);
-         }
-
-diff --git a/modules/juce_gui_basics/native/juce_Windowing_android.cpp b/modules/juce_gui_basics/native/juce_Windowing_android.cpp
---- a/modules/juce_gui_basics/native/juce_Windowing_android.cpp
-+++ b/modules/juce_gui_basics/native/juce_Windowing_android.cpp
-@@ -930,3 +930,4 @@ DECLARE_JNI_CLASS_WITH_MIN_SDK (AndroidWindowManagerLayoutParams28, "android/view/WindowManager$LayoutParams", 28)
+@@ -928,6 +928,7 @@ DECLARE_JNI_CLASS_WITH_MIN_SDK (AndroidWindowManagerLayoutParams28, "android/vie
+ 
  #define JNI_CLASS_MEMBERS(METHOD, STATICMETHOD, FIELD, STATICFIELD, CALLBACK) \
   METHOD (setFitInsetsSides,              "setFitInsetsSides",              "(I)V") \
 + METHOD (setFitInsetsTypes,              "setFitInsetsTypes",              "(I)V") \
   METHOD (setFitInsetsIgnoringVisibility, "setFitInsetsIgnoringVisibility", "(Z)V") \
-
-diff --git a/modules/juce_gui_basics/native/juce_Windowing_android.cpp b/modules/juce_gui_basics/native/juce_Windowing_android.cpp
---- a/modules/juce_gui_basics/native/juce_Windowing_android.cpp
-+++ b/modules/juce_gui_basics/native/juce_Windowing_android.cpp
-@@ -2940,6 +2940,10 @@ void Displays::findDisplays()
-             return contentSize;
+ 
+ DECLARE_JNI_CLASS_WITH_MIN_SDK (AndroidWindowManagerLayoutParams30, "android/view/WindowManager$LayoutParams", 30)
+@@ -2224,7 +2225,8 @@ private:
+ 
+         if (getAndroidSDKVersion() >= 30)
+         {
+-            env->CallVoidMethod (layoutParams, AndroidWindowManagerLayoutParams30.setFitInsetsSides, (jint) 0);
++            env->CallVoidMethod (layoutParams, AndroidWindowManagerLayoutParams30.setFitInsetsTypes, (jint) (7 | 128));
++            env->CallVoidMethod (layoutParams, AndroidWindowManagerLayoutParams30.setFitInsetsSides, (jint) 15);
+             env->CallVoidMethod (layoutParams, AndroidWindowManagerLayoutParams30.setFitInsetsIgnoringVisibility, (jboolean) true);
+         }
+ 
+@@ -2936,6 +2938,11 @@ void Displays::findDisplays (const Desktop& desktop)
          });
      }
-
+ 
 +    d.userArea = d.userArea.withTrimmedTop (d.safeAreaInsets.getTop())
 +                         .withTrimmedLeft (d.safeAreaInsets.getLeft())
 +                         .withTrimmedRight (d.safeAreaInsets.getRight())
 +                         .withTrimmedBottom (d.safeAreaInsets.getBottom());
-
++
      if (activity != nullptr)
+     {
+         if (contentView != nullptr)
+

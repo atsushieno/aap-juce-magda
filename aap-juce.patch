@@ -1,0 +1,53 @@
+diff --git a/aap-modules/aap_audio_plugin_client/juceaap_audio_plugin_format.cpp b/aap-modules/aap_audio_plugin_client/juceaap_audio_plugin_format.cpp
+index 527b223..57f2784 100644
+--- a/aap-modules/aap_audio_plugin_client/juceaap_audio_plugin_format.cpp
++++ b/aap-modules/aap_audio_plugin_client/juceaap_audio_plugin_format.cpp
+@@ -263,6 +263,8 @@ bool AndroidAudioPluginInstance::parameterValueChanged(AndroidAudioPluginParamet
+ 
+     // In AAP V2 protocol, parameters are sent over MIDI2 port as UMP.
+     auto *buffer = native->getAudioPluginBuffer();
++    if (!prepared || buffer == nullptr)
++        return false;
+     if (aap_midi_in_port < 0)
+         return false; // there is no port that accepts parameter changes
+     if ((uint32_t) aap_midi_in_port >= buffer->num_ports(buffer))
+@@ -279,6 +281,10 @@ bool AndroidAudioPluginInstance::parameterValueChanged(AndroidAudioPluginParamet
+     // FIXME: RT lock
+ 
+     auto mbh = (AAPMidiBufferHeader*) buffer->get_buffer(buffer, aap_midi_in_port);
++    const auto bufferSize = buffer->get_buffer_size(buffer, aap_midi_in_port);
++    if (mbh == nullptr || bufferSize < static_cast<int32_t>(sizeof(AAPMidiBufferHeader) + 16) ||
++        mbh->length > static_cast<uint32_t>(bufferSize - sizeof(AAPMidiBufferHeader) - 16))
++        return false;
+     uint32_t* dst = (uint32_t*) (void*) ((uint8_t*) buffer->get_buffer(buffer, aap_midi_in_port) + sizeof(AAPMidiBufferHeader) + mbh->length);
+     mbh->length += 16;
+     auto transportValue = aapParameterPlainToTransportUint32(parameter->impl->getMinimumValue(),
+@@ -296,6 +302,7 @@ AndroidAudioPluginInstance::prepareToPlay(double sampleRate, int maximumExpected
+     sample_rate = (int) sampleRate;
+ 
+     native->prepare(maximumExpectedSamplesPerBlock, (int32_t) sampleRate);
++    prepared = true;
+ 
+     for (int i = 0, n = native->getNumPorts(); i < n; i++) {
+         auto port = native->getPort(i);
+@@ -311,6 +318,7 @@ AndroidAudioPluginInstance::prepareToPlay(double sampleRate, int maximumExpected
+ }
+ 
+ void AndroidAudioPluginInstance::releaseResources() {
++    prepared = false;
+     native->deactivate();
+ }
+ 
+diff --git a/aap-modules/aap_audio_plugin_client/juceaap_audio_plugin_format.h b/aap-modules/aap_audio_plugin_client/juceaap_audio_plugin_format.h
+index 6fd07d3..4ae071d 100644
+--- a/aap-modules/aap_audio_plugin_client/juceaap_audio_plugin_format.h
++++ b/aap-modules/aap_audio_plugin_client/juceaap_audio_plugin_format.h
+@@ -19,6 +19,7 @@ class AndroidAudioPluginInstance : public juce::AudioPluginInstance {
+ 
+     aap::PluginInstance *native;
+     int32_t aap_midi_in_port{-1}, aap_midi_out_port{-1};
++    bool prepared{false};
+     uint8_t midi_output_store[4096];
+     uint32_t midi_buffer_size{4096};
+     int sample_rate;
+

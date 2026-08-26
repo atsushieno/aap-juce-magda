@@ -1,6 +1,5 @@
 plugins {
     id 'com.android.application'
-    id 'org.jetbrains.kotlin.android'
 }
 
 android {
@@ -59,8 +58,6 @@ android {
         // JUCE's JuceMidiSupport triggers known Android Bluetooth permission lint findings.
         abortOnError = false
     }
-
-    kotlinOptions { jvmTarget = '17' }
 }
 
 dependencies {

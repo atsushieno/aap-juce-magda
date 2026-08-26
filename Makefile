@@ -11,12 +11,28 @@ APP_MODULE_DIRS=app
 PATCH_DEPTH=1
 PATCH_FILE=$(PWD)/magda-core.patch
 AAP_JUCE_PATCH_FILE=$(PWD)/aap-juce.patch
-PRE_BUILD_TASKS += patch-aap-juce
+PRE_BUILD_TASKS += ensure-faust patch-aap-juce
 AAP_JUCE_CMAKE_PATCH_HOSTING=1
 JUCE_PATCHES= \
     $(PWD)/juce-modules.patch \
     $(PWD)/external/aap-juce/juce-patches/8.0.12/juce-component-peer-view-touch.patch
 JUCE_PATCH_DEPTH=1
+
+ensure-faust:
+	@if command -v faust >/dev/null 2>&1; then \
+		echo "Faust found: $$(command -v faust)"; \
+	elif [ "$$(uname)" = "Darwin" ]; then \
+		brew install faust; \
+	elif command -v apt-get >/dev/null 2>&1; then \
+		if [ "$$(id -u)" -eq 0 ]; then \
+			apt-get update && apt-get install -y faust; \
+		else \
+			sudo apt-get update && sudo apt-get install -y faust; \
+		fi; \
+	else \
+		echo "Faust is required but no supported package manager was found" >&2; \
+		exit 1; \
+	fi
 
 patch-aap-juce: $(AAP_JUCE_DIR)/.stamp-aap-juce
 

@@ -667,3 +667,49 @@ index 609c26d0..fd722619 100644
  
  set_target_properties(magda_scripting PROPERTIES
 
+diff --git a/magda/daw/ui/dialogs/AudioSettingsDialog.cpp b/magda/daw/ui/dialogs/AudioSettingsDialog.cpp
+index 1aa0c98b..7d3d2272 100644
+--- a/magda/daw/ui/dialogs/AudioSettingsDialog.cpp
++++ b/magda/daw/ui/dialogs/AudioSettingsDialog.cpp
+@@ -296,7 +296,9 @@ void CustomChannelSelector::applyToDevice() {
+     deviceManager_->setAudioDeviceSetup(setup, true);
+ 
+     // Flush pending async updates so wave device list rebuilds before audio callback fires (#719)
++#if JUCE_MODAL_LOOPS_PERMITTED
+     juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
++#endif
+ 
+     if (audioEngine_ != nullptr)
+         audioEngine_->setEnabledWaveChannels(isInput_, activeChannels);
+@@ -630,7 +632,11 @@ void AudioSettingsDialog::showDeviceRefreshIndicator(bool flushRepaint) {
+     repaint();
+ 
+     if (flushRepaint)
++    {
++#if JUCE_MODAL_LOOPS_PERMITTED
+         juce::MessageManager::getInstance()->runDispatchLoopUntil(20);
++#endif
++    }
+ }
+ 
+ void AudioSettingsDialog::hideDeviceRefreshIndicator() {
+@@ -784,7 +790,9 @@ void AudioSettingsDialog::onOutputDeviceSelected() {
+ 
+ void AudioSettingsDialog::enableAllChannelsOnCurrentDevice() {
+     // Flush pending async updates so wave device list rebuilds before audio callback fires (#719)
++#if JUCE_MODAL_LOOPS_PERMITTED
+     juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
++#endif
+ 
+     // Enable all channels on the current device — it may have a different channel count
+     if (auto* device = deviceManager_->getCurrentAudioDevice()) {
+@@ -794,7 +802,9 @@ void AudioSettingsDialog::enableAllChannelsOnCurrentDevice() {
+         newSetup.outputChannels.clear();
+         newSetup.outputChannels.setRange(0, device->getOutputChannelNames().size(), true);
+         deviceManager_->setAudioDeviceSetup(newSetup, true);
++#if JUCE_MODAL_LOOPS_PERMITTED
+         juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
++#endif
+     }
+ }
+ 

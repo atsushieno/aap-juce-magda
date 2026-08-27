@@ -937,6 +937,40 @@ index 4c643ace..0e11e8e6 100644
      }
  }
  
+diff --git a/magda/daw/ui/windows/MainWindow.cpp b/magda/daw/ui/windows/MainWindow.cpp
+index 0b0bf3bc..f93a1b30 100644
+--- a/magda/daw/ui/windows/MainWindow.cpp
++++ b/magda/daw/ui/windows/MainWindow.cpp
+@@ -266,6 +266,21 @@ MainWindow::MainWindow(AudioEngine* audioEngine)
+     setupMenuBar();
+     juce::Logger::writeToLog("[MainWindow] Menu bar ready");
+ 
++    // Android's non-fullscreen JUCE peer applies the system/cutout insets to
++    // its WindowManager layout parameters.  Request the safe area's size, but
++    // from the display origin: this lets Android add the safe top/left offset
++    // once while keeping the peer inside the safe bottom/right edges.  Do not
++    // centre the smaller desktop default size, as that adds an unrelated
++    // blank strip above the menu.
++#if JUCE_ANDROID
++    if (auto display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay()) {
++        auto safeBounds = display->userArea;
++        safeBounds.setPosition(display->totalArea.getPosition());
++        setBounds(safeBounds);
++    }
++    else
++        setSize(LayoutConfig::defaultWindowWidth, LayoutConfig::defaultWindowHeight);
++#else
+     // Size and position the window within the display's work area
+     auto display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
+     if (display != nullptr) {
+@@ -279,6 +294,7 @@ MainWindow::MainWindow(AudioEngine* audioEngine)
+         setSize(LayoutConfig::defaultWindowWidth, LayoutConfig::defaultWindowHeight);
+         centreWithSize(getWidth(), getHeight());
+     }
++#endif
+     juce::Logger::writeToLog("[MainWindow] Calling setVisible(true)...");
+     setVisible(true);
+     juce::Logger::writeToLog("[MainWindow] Window is now visible");
 diff --git a/magda/daw/ui/windows/MainWindowMenus.cpp b/magda/daw/ui/windows/MainWindowMenus.cpp
 index 18ec0129..9228a301 100644
 --- a/magda/daw/ui/windows/MainWindowMenus.cpp
@@ -1051,3 +1085,15 @@ index f999d28d..fbb85bd0 100644
      file(STRINGS "${_engine_source}" _engine_includes REGEX "^[ \t]*#[ \t]*include[ \t]*[<\"]")
  
      foreach(_include_line ${_engine_includes})
+diff --git a/third_party/JUCE b/third_party/JUCE
+--- a/third_party/JUCE
++++ b/third_party/JUCE
+@@ -1 +1 @@
+-Subproject commit 04bba0f2be1d7838c5a46ee6b69ba9e3bc3fd431
++Subproject commit 04bba0f2be1d7838c5a46ee6b69ba9e3bc3fd431-dirty
+diff --git a/third_party/tracktion_engine b/third_party/tracktion_engine
+--- a/third_party/tracktion_engine
++++ b/third_party/tracktion_engine
+@@ -1 +1 @@
+-Subproject commit f7a2eb937ef3c1a2eba93994e98389f839ea29b8
++Subproject commit f7a2eb937ef3c1a2eba93994e98389f839ea29b8-dirty

@@ -191,6 +191,91 @@ index 481f770d..fbdf6f4b 100644
  if(APPLE)
      add_custom_command(TARGET magda_daw_app POST_BUILD
          COMMAND ${CMAKE_COMMAND} -E copy_directory
+diff --git a/magda/daw/audio/ClipCommands.cpp b/magda/daw/audio/ClipCommands.cpp
+index af6a9747..5b2b7d3f 100644
+--- a/magda/daw/audio/ClipCommands.cpp
++++ b/magda/daw/audio/ClipCommands.cpp
+@@ -146,6 +146,16 @@ bool runInsertCapturePass(AudioEngine& engine, double startSec, double endSec,
+     if (service == nullptr)
+         return true;
+ 
++#if !JUCE_MODAL_LOOPS_PERMITTED
++    // This legacy boolean API cannot wait for an asynchronous dialog result,
++    // and Android builds do not provide a modal loop.  Do not start a capture
++    // that cannot be supervised by its progress/cancel UI.
++    const bool started = service->startCapturePass(startSec, endSec, renderSampleRate,
++                                                   [](bool) {});
++    if (started)
++        service->cancelCapturePass();
++    return false;
++#else
+     juce::AlertWindow window("Capturing External Hardware",
+                              "Playing the bounce range in real time to record the "
+                              "external instrument/FX returns.",
+@@ -188,6 +198,7 @@ bool runInsertCapturePass(AudioEngine& engine, double startSec, double endSec,
+     if (!finished)
+         service->cancelCapturePass();
+     return ok;
++#endif
+ }
+ 
+ // Removes the hidden capture taps + temp files when the bounce is done, on
+@@ -1259,7 +1270,13 @@ void RenderClipCommand::execute() {
+     auto renderSession = engine_->createOfflineRenderSession(engine_->isPlaying());
+     RenderProgressWindow progressWindow(
+         "Rendering Clip...", renderSession ? renderSession->createTask(request) : nullptr);
++#if JUCE_MODAL_LOOPS_PERMITTED
+     bool userCancelled = !progressWindow.runThread();
++#else
++    progressWindow.startThread();
++    progressWindow.waitForThreadToExit(-1);
++    bool userCancelled = false;
++#endif
+ 
+     if (userCancelled || !progressWindow.wasSuccessful()) {
+         if (!userCancelled)
+@@ -1411,7 +1428,13 @@ void RenderTimeSelectionCommand::execute() {
+         juce::String title = "Rendering track " + juce::String(trackIndex_) + " of " +
+                              juce::String(trackTotal) + "...";
+         RenderProgressWindow progressWindow(title, renderSession->createTask(request));
++#if JUCE_MODAL_LOOPS_PERMITTED
+         bool userCancelled = !progressWindow.runThread();
++#else
++        progressWindow.startThread();
++        progressWindow.waitForThreadToExit(-1);
++        bool userCancelled = false;
++#endif
+ 
+         if (userCancelled || !progressWindow.wasSuccessful()) {
+             if (!userCancelled)
+@@ -2167,7 +2190,13 @@ void BounceInPlaceCommand::execute() {
+         auto renderSession = engine_->createOfflineRenderSession(false);
+         RenderProgressWindow progressWindow(
+             "Bouncing In Place...", renderSession ? renderSession->createTask(request) : nullptr);
++#if JUCE_MODAL_LOOPS_PERMITTED
+         userCancelled = !progressWindow.runThread();
++#else
++        progressWindow.startThread();
++        progressWindow.waitForThreadToExit(-1);
++        userCancelled = false;
++#endif
+         renderSucceeded = progressWindow.wasSuccessful();
+     }
+ 
+@@ -2342,7 +2371,13 @@ void BounceToNewTrackCommand::execute() {
+         RenderProgressWindow progressWindow("Bouncing To New Track...",
+                                             renderSession ? renderSession->createTask(request)
+                                                           : nullptr);
++#if JUCE_MODAL_LOOPS_PERMITTED
+         userCancelled = !progressWindow.runThread();
++#else
++        progressWindow.startThread();
++        progressWindow.waitForThreadToExit(-1);
++        userCancelled = false;
++#endif
+         renderSucceeded = progressWindow.wasSuccessful();
+     }
+ 
 diff --git a/magda/daw/audio/DevicesDependencies.cmake b/magda/daw/audio/DevicesDependencies.cmake
 index 28e86ef9..3dffa2b8 100644
 --- a/magda/daw/audio/DevicesDependencies.cmake
@@ -363,6 +448,23 @@ index 28c67286..8cd1b625 100644
  }
  #endif
  
+diff --git a/magda/daw/engine/MagdaUIBehaviour.cpp b/magda/daw/engine/MagdaUIBehaviour.cpp
+index c610bd7d..148de7f2 100644
+--- a/magda/daw/engine/MagdaUIBehaviour.cpp
++++ b/magda/daw/engine/MagdaUIBehaviour.cpp
+@@ -40,7 +40,12 @@ class TaskProgressWindow : public juce::ThreadWithProgressWindow {
+ void MagdaUIBehaviour::runTaskWithProgressBar(tracktion::ThreadPoolJobWithProgress& task) {
+     DBG("MagdaUIBehaviour::runTaskWithProgressBar - starting task: " << task.getJobName());
+     TaskProgressWindow window(task);
++#if JUCE_MODAL_LOOPS_PERMITTED
+     window.runThread();
++#else
++    window.startThread();
++    window.waitForThreadToExit(-1);
++#endif
+     auto progress = task.getCurrentTaskProgress();
+     DBG("MagdaUIBehaviour::runTaskWithProgressBar - task finished, progress=" << progress);
+ 
 diff --git a/magda/daw/engine/PluginScanCoordinator.cpp b/magda/daw/engine/PluginScanCoordinator.cpp
 index eecc3c09..35516851 100644
 --- a/magda/daw/engine/PluginScanCoordinator.cpp
@@ -376,8 +478,32 @@ index eecc3c09..35516851 100644
      // Resolve /proc/self/exe directly to find the real executable path.
      // JUCE's currentApplicationFile uses dladdr which on glibc returns argv[0]
      // for the main program. Inside an AppImage the type-2 runtime sets argv[0]
+diff --git a/magda/daw/engine/TracktionEngineWrapperDevices.cpp b/magda/daw/engine/TracktionEngineWrapperDevices.cpp
+index cab9d818..c5c24c8f 100644
+--- a/magda/daw/engine/TracktionEngineWrapperDevices.cpp
++++ b/magda/daw/engine/TracktionEngineWrapperDevices.cpp
+@@ -69,7 +69,9 @@ void TracktionEngineWrapper::handlePlaybackContextReallocation(tracktion::Device
+             setup.useDefaultInputChannels = false;
+             setup.useDefaultOutputChannels = false;
+             dm.deviceManager.setAudioDeviceSetup(setup, true);
++#if JUCE_MODAL_LOOPS_PERMITTED
+             juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
++#endif
+ 
+             int numInputChannels = device->getInputChannelNames().size();
+             for (auto* dev : dm.getWaveInputDevices()) {
+@@ -222,7 +224,9 @@ void TracktionEngineWrapper::rescanWaveDevices(bool enableInputs, bool enableOut
+ 
+     auto& deviceManager = engine_->getDeviceManager();
+     deviceManager.rescanWaveDeviceList();
++#if JUCE_MODAL_LOOPS_PERMITTED
+     juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
++#endif
+     if (enableInputs) {
+         for (auto* device : deviceManager.getWaveInputDevices())
+             if (device != nullptr && !device->isEnabled())
 diff --git a/magda/daw/engine/TracktionEngineWrapperInit.cpp b/magda/daw/engine/TracktionEngineWrapperInit.cpp
-index 87e9f51e..f268088f 100644
+index 87e9f51e..d36c71ac 100644
 --- a/magda/daw/engine/TracktionEngineWrapperInit.cpp
 +++ b/magda/daw/engine/TracktionEngineWrapperInit.cpp
 @@ -23,6 +23,10 @@
@@ -460,6 +586,26 @@ index 87e9f51e..f268088f 100644
      DBG("Plugin formats registered by Tracktion Engine: " << formatManager.getNumFormats());
      for (int i = 0; i < formatManager.getNumFormats(); ++i) {
          auto* format = formatManager.getFormat(i);
+@@ -216,7 +268,9 @@ void TracktionEngineWrapper::configureAudioDevices() {
+ 
+     auto result = juceDeviceManager.setAudioDeviceSetup(setup, true);
+     // Flush pending async updates so the new device is fully active
++#if JUCE_MODAL_LOOPS_PERMITTED
+     juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
++#endif
+     if (result.isEmpty()) {
+         DBG("Successfully selected preferred devices - Input: "
+             << setup.inputDeviceName << " (" << preferredInputs
+@@ -240,7 +294,9 @@ void TracktionEngineWrapper::configureAudioDevices() {
+         newSetup.useDefaultInputChannels = false;
+         newSetup.useDefaultOutputChannels = false;
+         juceDeviceManager.setAudioDeviceSetup(newSetup, true);
++#if JUCE_MODAL_LOOPS_PERMITTED
+         juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
++#endif
+     }
+ 
+     // Apply saved channel preferences at the TE wave device level
 diff --git a/magda/daw/magda_daw_main.cpp b/magda/daw/magda_daw_main.cpp
 index 45f5d886..91eec6b2 100644
 --- a/magda/daw/magda_daw_main.cpp
@@ -539,6 +685,258 @@ index f336c860..38ff9072 100644
      std::array<float, 12> chroma{};
      const auto pitchClasses =
          analyseKey ? makePitchClassLookup(sampleRate) : std::array<signed char, kFftBins>{};
+diff --git a/magda/daw/project/ProjectManager.cpp b/magda/daw/project/ProjectManager.cpp
+index 51113eb6..bf3c3240 100644
+--- a/magda/daw/project/ProjectManager.cpp
++++ b/magda/daw/project/ProjectManager.cpp
+@@ -896,6 +896,7 @@ bool ProjectManager::promptAutosaveRecovery(const juce::File& projectFile) {
+     if (autosaveTime <= projectTime)
+         return false;
+ 
++#if JUCE_MODAL_LOOPS_PERMITTED
+     int result = juce::AlertWindow::showYesNoCancelBox(
+         juce::AlertWindow::QuestionIcon, "Recover Autosaved Changes",
+         "An autosave file was found that is newer than the project file.\n\n"
+@@ -909,9 +910,35 @@ bool ProjectManager::promptAutosaveRecovery(const juce::File& projectFile) {
+         "Recover", "Discard", "Cancel");
+ 
+     return result == 1;
++#else
++    // This API is synchronous, while Android builds cannot run modal loops.
++    // Keep the lifecycle operation non-blocking by declining recovery; the
++    // caller will continue with the regular project file and remove the
++    // stale autosave below.
++    return false;
++#endif
+ }
+ 
+ bool ProjectManager::showUnsavedChangesDialog() {
++#if !JUCE_MODAL_LOOPS_PERMITTED
++    // Android cannot synchronously present a JUCE modal dialog.  This legacy
++    // boolean API has no continuation to resume the pending operation, so
++    // safely save an already-named project and reject an untitled one rather
++    // than silently discarding edits or blocking the message thread.
++    if (currentFile_.getFullPathName().isEmpty()) {
++        lastError_.clear();
++        return false;
++    }
++
++    if (!saveProject()) {
++        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon,
++                                               "Save Failed",
++                                               "Could not save project: " + lastError_);
++        return false;
++    }
++
++    return true;
++#else
+     // Modal dialog: returns 1 for "Save", 2 for "Don't Save", 0 for "Cancel"
+     int result = juce::AlertWindow::showYesNoCancelBox(
+         juce::AlertWindow::QuestionIcon, "Unsaved Changes",
+@@ -962,6 +989,7 @@ bool ProjectManager::showUnsavedChangesDialog() {
+ 
+     // result == 2: Don't Save — proceed without saving
+     return true;
++#endif
+ }
+ 
+ }  // namespace magda
+diff --git a/magda/daw/ui/dialogs/AudioSettingsDialog.cpp b/magda/daw/ui/dialogs/AudioSettingsDialog.cpp
+index 1aa0c98b..7d3d2272 100644
+--- a/magda/daw/ui/dialogs/AudioSettingsDialog.cpp
++++ b/magda/daw/ui/dialogs/AudioSettingsDialog.cpp
+@@ -296,7 +296,9 @@ void CustomChannelSelector::applyToDevice() {
+     deviceManager_->setAudioDeviceSetup(setup, true);
+ 
+     // Flush pending async updates so wave device list rebuilds before audio callback fires (#719)
++#if JUCE_MODAL_LOOPS_PERMITTED
+     juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
++#endif
+ 
+     if (audioEngine_ != nullptr)
+         audioEngine_->setEnabledWaveChannels(isInput_, activeChannels);
+@@ -630,7 +632,11 @@ void AudioSettingsDialog::showDeviceRefreshIndicator(bool flushRepaint) {
+     repaint();
+ 
+     if (flushRepaint)
++    {
++#if JUCE_MODAL_LOOPS_PERMITTED
+         juce::MessageManager::getInstance()->runDispatchLoopUntil(20);
++#endif
++    }
+ }
+ 
+ void AudioSettingsDialog::hideDeviceRefreshIndicator() {
+@@ -784,7 +790,9 @@ void AudioSettingsDialog::onOutputDeviceSelected() {
+ 
+ void AudioSettingsDialog::enableAllChannelsOnCurrentDevice() {
+     // Flush pending async updates so wave device list rebuilds before audio callback fires (#719)
++#if JUCE_MODAL_LOOPS_PERMITTED
+     juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
++#endif
+ 
+     // Enable all channels on the current device — it may have a different channel count
+     if (auto* device = deviceManager_->getCurrentAudioDevice()) {
+@@ -794,7 +802,9 @@ void AudioSettingsDialog::enableAllChannelsOnCurrentDevice() {
+         newSetup.outputChannels.clear();
+         newSetup.outputChannels.setRange(0, device->getOutputChannelNames().size(), true);
+         deviceManager_->setAudioDeviceSetup(newSetup, true);
++#if JUCE_MODAL_LOOPS_PERMITTED
+         juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
++#endif
+     }
+ }
+ 
+diff --git a/magda/daw/ui/dialogs/ControllersDialog.cpp b/magda/daw/ui/dialogs/ControllersDialog.cpp
+index e947970b..b1ab689b 100644
+--- a/magda/daw/ui/dialogs/ControllersDialog.cpp
++++ b/magda/daw/ui/dialogs/ControllersDialog.cpp
+@@ -310,7 +310,7 @@ void ControllerProfilesPage::onUploadClicked() {
+ 
+ void ControllerProfilesPage::importProfileFile(const juce::File& file, const juce::String& title) {
+     auto fail = [&](const juce::String& reason) {
+-        juce::AlertWindow::showMessageBox(juce::AlertWindow::WarningIcon, title, reason);
++        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon, title, reason);
+     };
+ 
+     auto parsed = juce::JSON::parse(file.loadFileAsString());
+@@ -343,24 +343,31 @@ void ControllerProfilesPage::importProfileFile(const juce::File& file, const juc
+     auto destFile =
+         userDir.getChildFile(ControllerProfileRegistry::filenameForProfileId(profileOpt->id));
+ 
++    auto copyProfile = [this, &reg, file, destFile, title, id = profileOpt->id]() {
++        if (!file.copyFileTo(destFile)) {
++            juce::AlertWindow::showMessageBoxAsync(
++                juce::AlertWindow::WarningIcon, title, tr("controllers.upload_copy_failed"));
++            return;
++        }
++        reg.load();
++        rebuildList();
++        juce::AlertWindow::showMessageBoxAsync(
++            juce::AlertWindow::InfoIcon, title,
++            tr("controllers.upload_success").replace("{0}", id));
++    };
++
+     if (destFile.existsAsFile()) {
+-        bool ok = juce::AlertWindow::showOkCancelBox(
++        juce::AlertWindow::showOkCancelBox(
+             juce::AlertWindow::QuestionIcon, title,
+             tr("controllers.upload_overwrite").replace("{0}", profileOpt->id), tr("dialogs.ok"),
+-            tr("dialogs.cancel"));
+-        if (!ok)
+-            return;
++            tr("dialogs.cancel"), nullptr,
++            juce::ModalCallbackFunction::create([copyProfile](int result) {
++                if (result == 1)
++                    copyProfile();
++            }));
++        return;
+     }
+-
+-    if (!file.copyFileTo(destFile))
+-        return fail(tr("controllers.upload_copy_failed"));
+-
+-    reg.load();
+-    rebuildList();
+-
+-    juce::AlertWindow::showMessageBox(
+-        juce::AlertWindow::InfoIcon, title,
+-        tr("controllers.upload_success").replace("{0}", profileOpt->id));
++    copyProfile();
+ }
+ 
+ void ControllerProfilesPage::onAddClicked() {
+@@ -368,9 +375,9 @@ void ControllerProfilesPage::onAddClicked() {
+     profileReg.load();
+     auto profiles = profileReg.all();
+     if (profiles.empty()) {
+-        juce::AlertWindow::showMessageBox(juce::AlertWindow::InfoIcon,
+-                                          tr("controllers.add_profile"),
+-                                          tr("controllers.no_profiles"));
++        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
++                                               tr("controllers.add_profile"),
++                                               tr("controllers.no_profiles"));
+         return;
+     }
+ 
+@@ -773,9 +780,9 @@ class LuaScriptsPage : public juce::Component {
+     void onAddScriptClicked() {
+         auto available = scripting_app::enumerateAvailableFactoryLuaScripts();
+         if (available.empty()) {
+-            juce::AlertWindow::showMessageBox(juce::AlertWindow::InfoIcon,
+-                                              tr("controllers.scripts.add"),
+-                                              tr("controllers.scripts.add_no_options"));
++            juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
++                                                   tr("controllers.scripts.add"),
++                                                   tr("controllers.scripts.add_no_options"));
+             return;
+         }
+         juce::PopupMenu menu;
+@@ -843,7 +850,7 @@ class LuaScriptsPage : public juce::Component {
+ 
+     void importScriptFile(const juce::File& file, const juce::String& title) {
+         auto fail = [&](const juce::String& reason) {
+-            juce::AlertWindow::showMessageBox(juce::AlertWindow::WarningIcon, title, reason);
++            juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon, title, reason);
+         };
+         if (!file.existsAsFile() || !file.hasFileExtension("lua"))
+             return fail(tr("controllers.scripts.import_invalid")
+@@ -854,21 +861,30 @@ class LuaScriptsPage : public juce::Component {
+             return fail(tr("controllers.scripts.import_copy_failed"));
+ 
+         auto destFile = scriptsDir.getChildFile(file.getFileName());
++        auto copyScript = [this, file, destFile, title]() {
++            if (!file.copyFileTo(destFile)) {
++                juce::AlertWindow::showMessageBoxAsync(
++                    juce::AlertWindow::WarningIcon, title,
++                    tr("controllers.scripts.import_copy_failed"));
++                return;
++            }
++            rebuildScripts();
++            juce::AlertWindow::showMessageBoxAsync(
++                juce::AlertWindow::InfoIcon, title,
++                tr("controllers.scripts.import_success").replace("{0}", file.getFileName()));
++        };
+         if (destFile.existsAsFile()) {
+-            bool ok = juce::AlertWindow::showOkCancelBox(
++            juce::AlertWindow::showOkCancelBox(
+                 juce::AlertWindow::QuestionIcon, title,
+                 tr("controllers.scripts.import_overwrite").replace("{0}", file.getFileName()),
+-                tr("dialogs.ok"), tr("dialogs.cancel"));
+-            if (!ok)
+-                return;
++                tr("dialogs.ok"), tr("dialogs.cancel"), nullptr,
++                juce::ModalCallbackFunction::create([copyScript](int result) {
++                    if (result == 1)
++                        copyScript();
++                }));
++            return;
+         }
+-        if (!file.copyFileTo(destFile))
+-            return fail(tr("controllers.scripts.import_copy_failed"));
+-
+-        rebuildScripts();
+-        juce::AlertWindow::showMessageBox(
+-            juce::AlertWindow::InfoIcon, title,
+-            tr("controllers.scripts.import_success").replace("{0}", file.getFileName()));
++        copyScript();
+     }
+ 
+     std::vector<juce::File> scripts_;
+diff --git a/magda/daw/ui/dialogs/SplashScreen.cpp b/magda/daw/ui/dialogs/SplashScreen.cpp
+index 4c643ace..0e11e8e6 100644
+--- a/magda/daw/ui/dialogs/SplashScreen.cpp
++++ b/magda/daw/ui/dialogs/SplashScreen.cpp
+@@ -256,7 +256,9 @@ void SplashScreen::setStatus(const juce::String& text) {
+         content->setStatus(text);
+         // Pump the message loop so the repaint is processed immediately,
+         // since callers typically block the message thread during init.
++#if JUCE_MODAL_LOOPS_PERMITTED
+         juce::MessageManager::getInstance()->runDispatchLoopUntil(10);
++#endif
+     }
+ }
+ 
 diff --git a/magda/daw/ui/windows/MainWindowMenus.cpp b/magda/daw/ui/windows/MainWindowMenus.cpp
 index 18ec0129..9228a301 100644
 --- a/magda/daw/ui/windows/MainWindowMenus.cpp
@@ -653,179 +1051,3 @@ index f999d28d..fbb85bd0 100644
      file(STRINGS "${_engine_source}" _engine_includes REGEX "^[ \t]*#[ \t]*include[ \t]*[<\"]")
  
      foreach(_include_line ${_engine_includes})
-diff --git a/magda/daw/ui/dialogs/AudioSettingsDialog.cpp b/magda/daw/ui/dialogs/AudioSettingsDialog.cpp
-index 1aa0c98b..7d3d2272 100644
---- a/magda/daw/ui/dialogs/AudioSettingsDialog.cpp
-+++ b/magda/daw/ui/dialogs/AudioSettingsDialog.cpp
-@@ -296,7 +296,9 @@ void CustomChannelSelector::applyToDevice() {
-     deviceManager_->setAudioDeviceSetup(setup, true);
- 
-     // Flush pending async updates so wave device list rebuilds before audio callback fires (#719)
-+#if JUCE_MODAL_LOOPS_PERMITTED
-     juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
-+#endif
- 
-     if (audioEngine_ != nullptr)
-         audioEngine_->setEnabledWaveChannels(isInput_, activeChannels);
-@@ -630,7 +632,11 @@ void AudioSettingsDialog::showDeviceRefreshIndicator(bool flushRepaint) {
-     repaint();
- 
-     if (flushRepaint)
-+    {
-+#if JUCE_MODAL_LOOPS_PERMITTED
-         juce::MessageManager::getInstance()->runDispatchLoopUntil(20);
-+#endif
-+    }
- }
- 
- void AudioSettingsDialog::hideDeviceRefreshIndicator() {
-@@ -784,7 +790,9 @@ void AudioSettingsDialog::onOutputDeviceSelected() {
- 
- void AudioSettingsDialog::enableAllChannelsOnCurrentDevice() {
-     // Flush pending async updates so wave device list rebuilds before audio callback fires (#719)
-+#if JUCE_MODAL_LOOPS_PERMITTED
-     juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
-+#endif
- 
-     // Enable all channels on the current device — it may have a different channel count
-     if (auto* device = deviceManager_->getCurrentAudioDevice()) {
-@@ -794,7 +802,9 @@ void AudioSettingsDialog::enableAllChannelsOnCurrentDevice() {
-         newSetup.outputChannels.clear();
-         newSetup.outputChannels.setRange(0, device->getOutputChannelNames().size(), true);
-         deviceManager_->setAudioDeviceSetup(newSetup, true);
-+#if JUCE_MODAL_LOOPS_PERMITTED
-         juce::MessageManager::getInstance()->runDispatchLoopUntil(0);
-+#endif
-     }
- }
- 
-diff --git a/magda/daw/ui/dialogs/ControllersDialog.cpp b/magda/daw/ui/dialogs/ControllersDialog.cpp
-index e947970b..b1ab689b 100644
---- a/magda/daw/ui/dialogs/ControllersDialog.cpp
-+++ b/magda/daw/ui/dialogs/ControllersDialog.cpp
-@@ -310,7 +310,7 @@ void ControllerProfilesPage::onUploadClicked() {
- 
- void ControllerProfilesPage::importProfileFile(const juce::File& file, const juce::String& title) {
-     auto fail = [&](const juce::String& reason) {
--        juce::AlertWindow::showMessageBox(juce::AlertWindow::WarningIcon, title, reason);
-+        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon, title, reason);
-     };
- 
-     auto parsed = juce::JSON::parse(file.loadFileAsString());
-@@ -343,24 +343,31 @@ void ControllerProfilesPage::importProfileFile(const juce::File& file, const juc
-     auto destFile =
-         userDir.getChildFile(ControllerProfileRegistry::filenameForProfileId(profileOpt->id));
- 
-+    auto copyProfile = [this, &reg, file, destFile, title, id = profileOpt->id]() {
-+        if (!file.copyFileTo(destFile)) {
-+            juce::AlertWindow::showMessageBoxAsync(
-+                juce::AlertWindow::WarningIcon, title, tr("controllers.upload_copy_failed"));
-+            return;
-+        }
-+        reg.load();
-+        rebuildList();
-+        juce::AlertWindow::showMessageBoxAsync(
-+            juce::AlertWindow::InfoIcon, title,
-+            tr("controllers.upload_success").replace("{0}", id));
-+    };
-+
-     if (destFile.existsAsFile()) {
--        bool ok = juce::AlertWindow::showOkCancelBox(
-+        juce::AlertWindow::showOkCancelBox(
-             juce::AlertWindow::QuestionIcon, title,
-             tr("controllers.upload_overwrite").replace("{0}", profileOpt->id), tr("dialogs.ok"),
--            tr("dialogs.cancel"));
--        if (!ok)
--            return;
-+            tr("dialogs.cancel"), nullptr,
-+            juce::ModalCallbackFunction::create([copyProfile](int result) {
-+                if (result == 1)
-+                    copyProfile();
-+            }));
-+        return;
-     }
--
--    if (!file.copyFileTo(destFile))
--        return fail(tr("controllers.upload_copy_failed"));
--
--    reg.load();
--    rebuildList();
--
--    juce::AlertWindow::showMessageBox(
--        juce::AlertWindow::InfoIcon, title,
--        tr("controllers.upload_success").replace("{0}", profileOpt->id));
-+    copyProfile();
- }
- 
- void ControllerProfilesPage::onAddClicked() {
-@@ -368,7 +375,7 @@ void ControllerProfilesPage::onAddClicked() {
-     if (profiles.empty()) {
--        juce::AlertWindow::showMessageBox(juce::AlertWindow::InfoIcon,
--                                          tr("controllers.add_profile"),
--                                          tr("controllers.no_profiles"));
-+        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
-+                                               tr("controllers.add_profile"),
-+                                               tr("controllers.no_profiles"));
-         return;
-     }
- 
-@@ -773,9 +773,9 @@ class LuaScriptsPage : public juce::Component {
-     void onAddScriptClicked() {
-         auto available = scripting_app::enumerateAvailableFactoryLuaScripts();
-         if (available.empty()) {
--            juce::AlertWindow::showMessageBox(juce::AlertWindow::InfoIcon,
--                                              tr("controllers.scripts.add"),
--                                              tr("controllers.scripts.add_no_options"));
-+            juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
-+                                                   tr("controllers.scripts.add"),
-+                                                   tr("controllers.scripts.add_no_options"));
-             return;
-         }
-         juce::PopupMenu menu;
-@@ -843,7 +843,7 @@ class LuaScriptsPage : public juce::Component {
- 
-     void importScriptFile(const juce::File& file, const juce::String& title) {
-         auto fail = [&](const juce::String& reason) {
--            juce::AlertWindow::showMessageBox(juce::AlertWindow::WarningIcon, title, reason);
-+            juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon, title, reason);
-         };
-@@ -854,21 +854,30 @@ class LuaScriptsPage : public juce::Component {
-         auto destFile = scriptsDir.getChildFile(file.getFileName());
-+        auto copyScript = [this, file, destFile, title]() {
-+            if (!file.copyFileTo(destFile)) {
-+                juce::AlertWindow::showMessageBoxAsync(
-+                    juce::AlertWindow::WarningIcon, title,
-+                    tr("controllers.scripts.import_copy_failed"));
-+                return;
-+            }
-+            rebuildScripts();
-+            juce::AlertWindow::showMessageBoxAsync(
-+                juce::AlertWindow::InfoIcon, title,
-+                tr("controllers.scripts.import_success").replace("{0}", file.getFileName()));
-+        };
-         if (destFile.existsAsFile()) {
--            bool ok = juce::AlertWindow::showOkCancelBox(
-+            juce::AlertWindow::showOkCancelBox(
-                 juce::AlertWindow::QuestionIcon, title,
-                 tr("controllers.scripts.import_overwrite").replace("{0}", file.getFileName()),
--                tr("dialogs.ok"), tr("dialogs.cancel"));
--            if (!ok)
--                return;
-+                tr("dialogs.ok"), tr("dialogs.cancel"), nullptr,
-+                juce::ModalCallbackFunction::create([copyScript](int result) {
-+                    if (result == 1)
-+                        copyScript();
-+                }));
-+            return;
-         }
--        if (!file.copyFileTo(destFile))
--            return fail(tr("controllers.scripts.import_copy_failed"));
--
--        rebuildScripts();
--        juce::AlertWindow::showMessageBox(
--            juce::AlertWindow::InfoIcon, title,
--            tr("controllers.scripts.import_success").replace("{0}", file.getFileName()));
-+        copyScript();
-     }
- 
-     std::vector<juce::File> scripts_;

@@ -653,20 +653,6 @@ index f999d28d..fbb85bd0 100644
      file(STRINGS "${_engine_source}" _engine_includes REGEX "^[ \t]*#[ \t]*include[ \t]*[<\"]")
  
      foreach(_include_line ${_engine_includes})
-diff --git a/magda/scripting/CMakeLists.txt b/magda/scripting/CMakeLists.txt
-index 609c26d0..fd722619 100644
---- a/magda/scripting/CMakeLists.txt
-+++ b/magda/scripting/CMakeLists.txt
-@@ -113,7 +113,7 @@ target_link_libraries(magda_scripting
- 
- target_include_directories(magda_scripting
-     PUBLIC
--    ${CMAKE_SOURCE_DIR}
-+    ${PROJECT_SOURCE_DIR}
- )
- 
- set_target_properties(magda_scripting PROPERTIES
-
 diff --git a/magda/daw/ui/dialogs/AudioSettingsDialog.cpp b/magda/daw/ui/dialogs/AudioSettingsDialog.cpp
 index 1aa0c98b..7d3d2272 100644
 --- a/magda/daw/ui/dialogs/AudioSettingsDialog.cpp
@@ -713,3 +699,133 @@ index 1aa0c98b..7d3d2272 100644
      }
  }
  
+diff --git a/magda/daw/ui/dialogs/ControllersDialog.cpp b/magda/daw/ui/dialogs/ControllersDialog.cpp
+index e947970b..b1ab689b 100644
+--- a/magda/daw/ui/dialogs/ControllersDialog.cpp
++++ b/magda/daw/ui/dialogs/ControllersDialog.cpp
+@@ -310,7 +310,7 @@ void ControllerProfilesPage::onUploadClicked() {
+ 
+ void ControllerProfilesPage::importProfileFile(const juce::File& file, const juce::String& title) {
+     auto fail = [&](const juce::String& reason) {
+-        juce::AlertWindow::showMessageBox(juce::AlertWindow::WarningIcon, title, reason);
++        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon, title, reason);
+     };
+ 
+     auto parsed = juce::JSON::parse(file.loadFileAsString());
+@@ -343,24 +343,31 @@ void ControllerProfilesPage::importProfileFile(const juce::File& file, const juc
+     auto destFile =
+         userDir.getChildFile(ControllerProfileRegistry::filenameForProfileId(profileOpt->id));
+ 
++    auto copyProfile = [this, &reg, file, destFile, title, id = profileOpt->id]() {
++        if (!file.copyFileTo(destFile)) {
++            juce::AlertWindow::showMessageBoxAsync(
++                juce::AlertWindow::WarningIcon, title, tr("controllers.upload_copy_failed"));
++            return;
++        }
++        reg.load();
++        rebuildList();
++        juce::AlertWindow::showMessageBoxAsync(
++            juce::AlertWindow::InfoIcon, title,
++            tr("controllers.upload_success").replace("{0}", id));
++    };
++
+     if (destFile.existsAsFile()) {
+-        bool ok = juce::AlertWindow::showOkCancelBox(
++        juce::AlertWindow::showOkCancelBox(
+             juce::AlertWindow::QuestionIcon, title,
+             tr("controllers.upload_overwrite").replace("{0}", profileOpt->id), tr("dialogs.ok"),
+-            tr("dialogs.cancel"));
+-        if (!ok)
+-            return;
++            tr("dialogs.cancel"), nullptr,
++            juce::ModalCallbackFunction::create([copyProfile](int result) {
++                if (result == 1)
++                    copyProfile();
++            }));
++        return;
+     }
+-
+-    if (!file.copyFileTo(destFile))
+-        return fail(tr("controllers.upload_copy_failed"));
+-
+-    reg.load();
+-    rebuildList();
+-
+-    juce::AlertWindow::showMessageBox(
+-        juce::AlertWindow::InfoIcon, title,
+-        tr("controllers.upload_success").replace("{0}", profileOpt->id));
++    copyProfile();
+ }
+ 
+ void ControllerProfilesPage::onAddClicked() {
+@@ -368,7 +375,7 @@ void ControllerProfilesPage::onAddClicked() {
+     if (profiles.empty()) {
+-        juce::AlertWindow::showMessageBox(juce::AlertWindow::InfoIcon,
+-                                          tr("controllers.add_profile"),
+-                                          tr("controllers.no_profiles"));
++        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
++                                               tr("controllers.add_profile"),
++                                               tr("controllers.no_profiles"));
+         return;
+     }
+ 
+@@ -773,9 +773,9 @@ class LuaScriptsPage : public juce::Component {
+     void onAddScriptClicked() {
+         auto available = scripting_app::enumerateAvailableFactoryLuaScripts();
+         if (available.empty()) {
+-            juce::AlertWindow::showMessageBox(juce::AlertWindow::InfoIcon,
+-                                              tr("controllers.scripts.add"),
+-                                              tr("controllers.scripts.add_no_options"));
++            juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::InfoIcon,
++                                                   tr("controllers.scripts.add"),
++                                                   tr("controllers.scripts.add_no_options"));
+             return;
+         }
+         juce::PopupMenu menu;
+@@ -843,7 +843,7 @@ class LuaScriptsPage : public juce::Component {
+ 
+     void importScriptFile(const juce::File& file, const juce::String& title) {
+         auto fail = [&](const juce::String& reason) {
+-            juce::AlertWindow::showMessageBox(juce::AlertWindow::WarningIcon, title, reason);
++            juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::WarningIcon, title, reason);
+         };
+@@ -854,21 +854,30 @@ class LuaScriptsPage : public juce::Component {
+         auto destFile = scriptsDir.getChildFile(file.getFileName());
++        auto copyScript = [this, file, destFile, title]() {
++            if (!file.copyFileTo(destFile)) {
++                juce::AlertWindow::showMessageBoxAsync(
++                    juce::AlertWindow::WarningIcon, title,
++                    tr("controllers.scripts.import_copy_failed"));
++                return;
++            }
++            rebuildScripts();
++            juce::AlertWindow::showMessageBoxAsync(
++                juce::AlertWindow::InfoIcon, title,
++                tr("controllers.scripts.import_success").replace("{0}", file.getFileName()));
++        };
+         if (destFile.existsAsFile()) {
+-            bool ok = juce::AlertWindow::showOkCancelBox(
++            juce::AlertWindow::showOkCancelBox(
+                 juce::AlertWindow::QuestionIcon, title,
+                 tr("controllers.scripts.import_overwrite").replace("{0}", file.getFileName()),
+-                tr("dialogs.ok"), tr("dialogs.cancel"));
+-            if (!ok)
+-                return;
++                tr("dialogs.ok"), tr("dialogs.cancel"), nullptr,
++                juce::ModalCallbackFunction::create([copyScript](int result) {
++                    if (result == 1)
++                        copyScript();
++                }));
++            return;
+         }
+-        if (!file.copyFileTo(destFile))
+-            return fail(tr("controllers.scripts.import_copy_failed"));
+-
+-        rebuildScripts();
+-        juce::AlertWindow::showMessageBox(
+-            juce::AlertWindow::InfoIcon, title,
+-            tr("controllers.scripts.import_success").replace("{0}", file.getFileName()));
++        copyScript();
+     }
+ 
+     std::vector<juce::File> scripts_;

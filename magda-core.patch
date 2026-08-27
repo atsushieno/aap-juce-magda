@@ -1085,15 +1085,17 @@ index f999d28d..fbb85bd0 100644
      file(STRINGS "${_engine_source}" _engine_includes REGEX "^[ \t]*#[ \t]*include[ \t]*[<\"]")
  
      foreach(_include_line ${_engine_includes})
-diff --git a/third_party/JUCE b/third_party/JUCE
---- a/third_party/JUCE
-+++ b/third_party/JUCE
-@@ -1 +1 @@
--Subproject commit 04bba0f2be1d7838c5a46ee6b69ba9e3bc3fd431
-+Subproject commit 04bba0f2be1d7838c5a46ee6b69ba9e3bc3fd431-dirty
-diff --git a/third_party/tracktion_engine b/third_party/tracktion_engine
---- a/third_party/tracktion_engine
-+++ b/third_party/tracktion_engine
-@@ -1 +1 @@
--Subproject commit f7a2eb937ef3c1a2eba93994e98389f839ea29b8
-+Subproject commit f7a2eb937ef3c1a2eba93994e98389f839ea29b8-dirty
+diff --git a/third_party/tracktion_engine/modules/tracktion_engine/playback/graph/tracktion_CombiningNode.cpp b/third_party/tracktion_engine/modules/tracktion_engine/playback/graph/tracktion_CombiningNode.cpp
+index 95c3d4d3..fc471551 100644
+--- a/third_party/tracktion_engine/modules/tracktion_engine/playback/graph/tracktion_CombiningNode.cpp
++++ b/third_party/tracktion_engine/modules/tracktion_engine/playback/graph/tracktion_CombiningNode.cpp
+@@ -87,7 +87,9 @@ struct CombiningNode::TimedNode
+ 
+     void process (ProcessContext& pc)
+     {
++       #if JUCE_DEBUG
+         jassert (hasPrefetched);
++       #endif
+ 
+         // Process all the Nodes
+         for (auto n : nodesToProcess)

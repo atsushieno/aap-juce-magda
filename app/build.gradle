@@ -17,9 +17,6 @@ android {
         externalNativeBuild {
             cmake {
                 arguments '-DJUCEAAP_ENABLED=1',
-                        "-DAAP_DIR=${rootProject.projectDir}/external/aap-core",
-                        "-DAAP_JUCE_DIR=${rootProject.projectDir}/external/aap-juce",
-                        "-DMAGDA_DIR=${rootProject.projectDir}/external/magda-core",
                         '-DMAGDA_FAUST_BACKEND=interp',
                         '-DANDROID_STL=c++_shared',
                         '-DANDROID_CPP_FEATURES=exceptions rtti'
@@ -63,5 +60,21 @@ android {
 dependencies {
     implementation 'androidx.core:core-ktx:1.18.0'
     implementation 'androidx.startup:startup-runtime:1.2.0'
-    implementation 'org.androidaudioplugin:androidaudioplugin:0.11.1'
+    implementation libs.aap.core
+}
+
+apply from: '../external/aap-juce/gradle/aap-juce.gradle'
+
+tasks.register('fetchMagdaFont', Exec) {
+    workingDir rootProject.file('external/magda-core')
+    commandLine 'git', 'lfs', 'pull', '--include=assets/fonts/NotoSansCJKsc-Regular.otf'
+    onlyIf {
+        def font = rootProject.file('external/magda-core/assets/fonts/NotoSansCJKsc-Regular.otf')
+        !font.isFile() || (font.length() < 1024 &&
+                font.getText('UTF-8').startsWith('version https://git-lfs.github.com/spec/'))
+    }
+}
+
+tasks.named('prepareAapJuce') {
+    dependsOn tasks.named('fetchMagdaFont')
 }

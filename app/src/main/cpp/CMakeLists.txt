@@ -1,4 +1,13 @@
 cmake_minimum_required(VERSION 3.24)
+add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/../../../../external/aap-juce"
+        "${CMAKE_CURRENT_BINARY_DIR}/aap-juce" EXCLUDE_FROM_ALL)
+set(MAGDA_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../../external/magda-core")
+aap_juce_configure(JUCE_SOURCE_DIR "${MAGDA_DIR}/third_party/JUCE" MODE HOST
+        APP_SOURCE_DIR "${MAGDA_DIR}"
+        APP_PATCHES "${CMAKE_CURRENT_LIST_DIR}/../../../../magda-core.patch"
+        EXTRA_JUCE_PATCHES "${CMAKE_CURRENT_LIST_DIR}/../../../../juce-modules.patch"
+        ADOPT_EXISTING_PATCHES)
+
 project(MagdaAAP LANGUAGES C CXX)
 # Keep the Android CMake graph sensitive to MAGDA's platform compatibility
 # modules and retain the single magda_daw_app native target.
@@ -7,15 +16,6 @@ project(MagdaAAP LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-if(NOT DEFINED MAGDA_DIR)
-    set(MAGDA_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../../external/magda-core")
-endif()
-if(NOT DEFINED AAP_DIR)
-    set(AAP_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../../external/aap-core")
-endif()
-if(NOT DEFINED AAP_JUCE_DIR)
-    set(AAP_JUCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../../../external/aap-juce")
-endif()
 
 # MAGDA's desktop build obtains libxml2 from vcpkg.  Android has no system
 # libxml2, so provide the same library in this one normal application build.

@@ -95,38 +95,4 @@ foreach(_magda_target magda_daw_app magda_plugin_scanner magda_cli)
     endif()
 endforeach()
 
-find_package(androidaudioplugin REQUIRED CONFIG)
-juce_add_module("${AAP_JUCE_DIR}/aap-modules/aap_audio_plugin_client")
-
-# TracktionEngineWrapperInit.cpp is compiled into MAGDA's normal static
-# library, so the AAP format's compile definitions and module usage requirements
-# must reach that target as well as the final JNI shared library.
-if(TARGET magda_daw)
-    target_compile_definitions(magda_daw PRIVATE
-        JUCEAAP_ENABLED=1
-        JUCEAAP_HAVE_AUDIO_PLAYHEAD_NEW_POSITION_INFO=1
-        JUCEAAP_USE_UNIQUE_ID=1
-        JUCEAAP_HOSTED_PARAMETER=1
-    )
-    target_link_libraries(magda_daw PRIVATE
-        androidaudioplugin::androidaudioplugin
-        aap_audio_plugin_client
-    )
-endif()
-
-target_link_libraries(magda_daw_app
-    PRIVATE
-    androidaudioplugin::androidaudioplugin
-    aap_audio_plugin_client
-)
-
-target_compile_definitions(magda_daw_app PRIVATE
-    JUCEAAP_ENABLED=1
-    JUCEAAP_HAVE_AUDIO_PLAYHEAD_NEW_POSITION_INFO=1
-    JUCEAAP_USE_UNIQUE_ID=1
-    JUCEAAP_HOSTED_PARAMETER=1
-    JUCE_DONT_AUTO_OPEN_MIDI_DEVICES_ON_MOBILE=1
-    JUCE_USE_ANDROID_OBOE_STABILIZED_CALLBACK=1
-    JUCE_PUSH_NOTIFICATIONS=1
-    JUCE_PUSH_NOTIFICATIONS_ACTIVITY="com/rmsl/juce/JuceActivity"
-)
+aap_juce_host(TARGETS magda_daw magda_daw_app)
